@@ -405,7 +405,7 @@ int mb_rtu_send(MB_DESC_T *mb_desc, MB_DATA_T *mb_data)
 
 #ifdef MB_DEBUG
     MB_PRINT("SEND\n");
-    mb_cache_print(mb_data);
+    mb_cache_show(mb_data);
 #endif
 
     return com_send(mb_desc, mb_data);
@@ -436,7 +436,7 @@ int mb_rtu_recv(MB_DESC_T *mb_desc, MB_DATA_T *mb_data)
 
 #ifdef MB_DEBUG
     MB_PRINT("RECV\n");
-    mb_cache_print(mb_data);
+    mb_cache_show(mb_data);
 #endif
 
     /* decap slaver address */

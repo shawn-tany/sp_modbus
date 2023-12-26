@@ -370,21 +370,27 @@ void mb_data_show(MB_MASTER_T mb_master_info)
         case MB_FUNC_02 : 
         case MB_FUNC_03 : 
         case MB_FUNC_04 : 
-            printf("mb_master_info.code = %02x\n", mb_master_info.code);
+            printf("mb_master_info.code = 0x%02x\n", mb_master_info.code);
             printf("mb_master_info.n_byte = %d\n", mb_master_info.n_byte);
             /* value */
             for (i = 0; i < mb_master_info.n_byte; i++)
             {
-                printf("mb_master_info.value[%d] = %02x\n", i + 1, mb_master_info.value[i]);
+                printf("mb_master_info.value[%d] = 0x%02x\n", i + 1, mb_master_info.value[i]);
             }
             break;
             
         case MB_FUNC_05 : 
         case MB_FUNC_06 : 
+            printf("mb_master_info.code = 0x%02x\n", mb_master_info.code);
+            printf("mb_master_info.reg = 0x%04x\n", mb_master_info.reg);
+            printf("mb_master_info.value = 0x%04x\n", *(UINT16_T *)(&mb_master_info.value[0]));
             break;
             
         case MB_FUNC_0f : 
         case MB_FUNC_10 : 
+            printf("mb_master_info.code = %02x\n", mb_master_info.code);
+            printf("mb_master_info.reg = 0x%04x\n", mb_master_info.reg);
+            printf("mb_master_info.n_reg = 0x%04x\n", mb_master_info.n_reg);
             break;
             
         default :
