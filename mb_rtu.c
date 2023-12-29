@@ -70,7 +70,7 @@ static void mbrtu_crc_encap(MB_DATA_T *mb_data)
 
     MBDATA_WORD_SET(mb_data, crc);
 
-    mb_data->master_info.checksum = crc;
+    mb_data->mb_info.checksum = crc;
 }
 
 static void mbrtu_crc_decap(MB_DATA_T *mb_data)
@@ -86,7 +86,7 @@ static void mbrtu_crc_decap(MB_DATA_T *mb_data)
         crc = b2l_endian(crc);
     }
     
-    mb_data->master_info.checksum = crc;
+    mb_data->mb_info.checksum = crc;
 }
 
 static int com_recv(MB_DESC_T *mb_desc, MB_DATA_T *mb_data)

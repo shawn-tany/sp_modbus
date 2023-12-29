@@ -152,7 +152,7 @@ typedef struct
     UINT8_T   n_byte;
     UINT8_T   value[MAX_MBVALUE_SIZE];
     UINT16_T  checksum;
-} __attribute__((packed)) MB_MASTER_T;
+} __attribute__((packed)) MB_INFO_T;
 
 typedef struct 
 {
@@ -161,7 +161,7 @@ typedef struct
     UINT8_T slave_addr;
 
     /* modbus info */
-    MB_MASTER_T master_info;
+    MB_INFO_T mb_info;
 
     /* modbus cache */
     UINT16_T  max_data_len;     /* ModBus data cache size */

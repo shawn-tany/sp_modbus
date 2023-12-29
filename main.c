@@ -187,18 +187,18 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
 
 /*
  * Function       : Select a ModBus function, and fill in relevant data
- * mb_master_info : the data information to be ModBus sent to the ModBus slaver from master
+ * mb_info : the data information to be ModBus sent to the ModBus slaver from master
  * return         : (ModBus function code)=SUCCESS -1=ERROR
  */
-static int command_select(MB_MASTER_T *mb_master_info)
+static int command_select(MB_INFO_T *mb_info)
 {
-    PTR_CHECK_N1(mb_master_info);
+    PTR_CHECK_N1(mb_info);
 
     int i = 0;
     UINT8_T  code = 0;
     char commad[32] = {0};
 
-    memset(mb_master_info, 0, sizeof(MB_MASTER_T));
+    memset(mb_info, 0, sizeof(MB_INFO_T));
 
     printf( "\n"
             "   *********************************************************\n"
@@ -234,46 +234,46 @@ static int command_select(MB_MASTER_T *mb_master_info)
         case MB_FUNC_03 :
         case MB_FUNC_04 :
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_master_info->reg);
+            scanf("%hx", &mb_info->reg);
 
             printf("Please input register number\n");
-            scanf("%hd", &mb_master_info->n_reg);
+            scanf("%hd", &mb_info->n_reg);
             break;
             
         case MB_FUNC_05 :
         case MB_FUNC_06 : 
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_master_info->reg);
+            scanf("%hx", &mb_info->reg);
 
             printf("Please input hexadecimal register value\n");
-            scanf("%hx", (UINT16_T *)(&mb_master_info->value[0]));
+            scanf("%hx", (UINT16_T *)(&mb_info->value[0]));
             break;
             
         case MB_FUNC_0f : 
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_master_info->reg);
+            scanf("%hx", &mb_info->reg);
 
             printf("Please input coils number\n");
-            scanf("%hd", &mb_master_info->n_reg);
+            scanf("%hd", &mb_info->n_reg);
 
-            for (i = 0; i < mb_master_info->n_reg; ++i)
+            for (i = 0; i < mb_info->n_reg; ++i)
             {
                 printf("Please input %dth coil value\n", i + 1);
-                scanf("%hhd", (UINT8_T *)(&mb_master_info->value[i]));
+                scanf("%hhd", (UINT8_T *)(&mb_info->value[i]));
             }
             break;
             
         case MB_FUNC_10 : 
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_master_info->reg);
+            scanf("%hx", &mb_info->reg);
 
             printf("Please input register number\n");
-            scanf("%hd", &mb_master_info->n_reg);
+            scanf("%hd", &mb_info->n_reg);
 
-            for (i = 0; i < mb_master_info->n_reg; ++i)
+            for (i = 0; i < mb_info->n_reg; ++i)
             {
                 printf("Please input %dth hexadecimal register value\n", i + 1);
-                scanf("%hx", (UINT16_T *)(&mb_master_info->value[i * 2]));
+                scanf("%hx", (UINT16_T *)(&mb_info->value[i * 2]));
             }
             break;
             
@@ -281,25 +281,25 @@ static int command_select(MB_MASTER_T *mb_master_info)
             return EVOCMB_QUIT;
             
         default :
-            printf("Invalid code %d\n", (int)mb_master_info->code);
+            printf("Invalid code %d\n", (int)mb_info->code);
             return -1;
     }
 
-    return (mb_master_info->code = code);
+    return (mb_info->code = code);
 }
 
-static void evocmb_data_print(MB_MASTER_T mb_master_info)
+static void evocmb_data_print(MB_INFO_T mb_info)
 {
     /* Show response status */
-    mb_status_show(mb_master_info);
+    mb_status_show(mb_info);
 
     /* Show response data */
-    mb_data_show(mb_master_info);
+    mb_data_show(mb_info);
 }
 
 /*
  * Function       : work entrance of ModBus demo
- * mb_master_info : debugging all functions of ModBus demo
+ * mb_info : debugging all functions of ModBus demo
  * return         : (ModBus function code)=SUCCESS -1=ERROR
  */
 static int work(MB_CTX_T *mb_ctx)
@@ -310,10 +310,10 @@ static int work(MB_CTX_T *mb_ctx)
 
     while (running)
     {
-        MB_MASTER_T mb_master_info;
+        MB_INFO_T mb_info;
 
         /* select a command */
-        if (0 > (ret = command_select(&mb_master_info)))
+        if (0 > (ret = command_select(&mb_info)))
         {
             printf("ERROR : Command set failed\n");
             continue;
@@ -325,7 +325,7 @@ static int work(MB_CTX_T *mb_ctx)
         }
 
         /* updata master info */
-        if (0 > evoc_mbctx_master_updata(mb_ctx, mb_master_info))
+        if (0 > evoc_mbctx_master_updata(mb_ctx, mb_info))
         {
             printf("ERROR : ModBus context updata master info failed\n");
             continue;
@@ -346,14 +346,14 @@ static int work(MB_CTX_T *mb_ctx)
         }
 
         /* take out modbus master info from slave respose */
-        if (0 > evoc_mbctx_master_takeout(mb_ctx, &mb_master_info))
+        if (0 > evoc_mbctx_master_takeout(mb_ctx, &mb_info))
         {
             printf("ERROR : Modbus master info take out from context failed\n");
             continue;
         }
 
         /* Show response */
-        evocmb_data_print(mb_master_info);
+        evocmb_data_print(mb_info);
     }
 
     return 0;

@@ -71,27 +71,27 @@ int evoc_mb_send(MB_CTX_T *mb_ctx);
  * mb_ctx   : ModBus context
  * return   : 0=SUCCESS -1=ERROR
  */
-int evoc_mbctx_master_updata(MB_CTX_T *mb_ctx, MB_MASTER_T mb_master_info);
+int evoc_mbctx_master_updata(MB_CTX_T *mb_ctx, MB_INFO_T mb_info);
 
 /*
  * Function : take out ModBus master information from ModBus context
  * mb_ctx   : ModBus context
  * return   : 0=SUCCESS -1=ERROR
  */
-int evoc_mbctx_master_takeout(MB_CTX_T *mb_ctx, MB_MASTER_T *mb_master_info);
+int evoc_mbctx_master_takeout(MB_CTX_T *mb_ctx, MB_INFO_T *mb_info);
 
 /*
  * Function         : show response status from ModBus slaver
- * mb_master_info   : ModBus master info
+ * mb_info   : ModBus master info
  * return           : void
  */
-void mb_status_show(MB_MASTER_T mb_master_info);
+void mb_status_show(MB_INFO_T mb_info);
 
 /*
  * Function         : show ModBus data after decap
- * mb_master_info   : ModBus master info
+ * mb_info   : ModBus master info
  * return           : void
  */
-void mb_data_show(MB_MASTER_T mb_master_info);
+void mb_data_show(MB_INFO_T mb_info);
 
 #endif

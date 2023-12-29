@@ -32,15 +32,15 @@ static void *stay_connected_routine(void *arg)
     {
         sleep(1);
 
-        MB_MASTER_T mb_master_info;
+        MB_INFO_T mb_info;
 
-        memset(&mb_master_info, 0, sizeof(MB_MASTER_T));
-        mb_master_info.code    = MB_FUNC_01;
-        mb_master_info.reg     = 0x0000;
-        mb_master_info.n_reg   = 16;
+        memset(&mb_info, 0, sizeof(MB_INFO_T));
+        mb_info.code    = MB_FUNC_01;
+        mb_info.reg     = 0x0000;
+        mb_info.n_reg   = 16;
 
         /* updata master info */
-        if (0 > evoc_mbctx_master_updata(mb_ctx, mb_master_info))
+        if (0 > evoc_mbctx_master_updata(mb_ctx, mb_info))
         {
             MB_PRINT("THREAD ERROR : ModBus context updata master info failed\n");
             continue;
@@ -61,7 +61,7 @@ static void *stay_connected_routine(void *arg)
         }
 
         /* take out modbus master info from slave respose */
-        if (0 > evoc_mbctx_master_takeout(mb_ctx, &mb_master_info))
+        if (0 > evoc_mbctx_master_takeout(mb_ctx, &mb_info))
         {
             MB_PRINT("THREAD ERROR : Modbus master info take out from context failed\n");
             continue;
@@ -221,19 +221,19 @@ int evoc_mb_send(MB_CTX_T *mb_ctx)
  * mb_ctx   : ModBus context
  * return   : 0=SUCCESS -1=ERROR
  */
-int evoc_mbctx_master_updata(MB_CTX_T *mb_ctx, MB_MASTER_T mb_master_info)
+int evoc_mbctx_master_updata(MB_CTX_T *mb_ctx, MB_INFO_T mb_info)
 {
     LOCK(&(mb_ctx->mb_resc.lock));
 
     PTR_CHECK_N1(mb_ctx);
 
-    switch (mb_master_info.code)
+    switch (mb_info.code)
     {
         case MB_FUNC_01 : 
         case MB_FUNC_02 : 
         case MB_FUNC_03 :
         case MB_FUNC_04 :
-            if (!mb_master_info.n_reg)
+            if (!mb_info.n_reg)
             {
                 return -1;
             }
@@ -245,7 +245,7 @@ int evoc_mbctx_master_updata(MB_CTX_T *mb_ctx, MB_MASTER_T mb_master_info)
             
         case MB_FUNC_0f : 
         case MB_FUNC_10 : 
-            if (!mb_master_info.n_reg)
+            if (!mb_info.n_reg)
             {
                 return -1;
             }
@@ -256,7 +256,7 @@ int evoc_mbctx_master_updata(MB_CTX_T *mb_ctx, MB_MASTER_T mb_master_info)
     }
 
     /* updata master info */
-    mb_ctx->mb_data->master_info = mb_master_info;
+    mb_ctx->mb_data->mb_info = mb_info;
     
     ULOCK(&(mb_ctx->mb_resc.lock));
 
@@ -268,17 +268,17 @@ int evoc_mbctx_master_updata(MB_CTX_T *mb_ctx, MB_MASTER_T mb_master_info)
  * mb_ctx   : ModBus context
  * return   : 0=SUCCESS -1=ERROR
  */
-int evoc_mbctx_master_takeout(MB_CTX_T *mb_ctx, MB_MASTER_T *mb_master_info)
+int evoc_mbctx_master_takeout(MB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 {
     LOCK(&(mb_ctx->mb_resc.lock));
 
     PTR_CHECK_N1(mb_ctx);
-    PTR_CHECK_N1(mb_master_info);
+    PTR_CHECK_N1(mb_info);
 
     /* take out master info */
-    *mb_master_info = mb_ctx->mb_data->master_info;
+    *mb_info = mb_ctx->mb_data->mb_info;
 
-    if (mb_master_info->err)
+    if (mb_info->err)
     {
         return -1;
     }
@@ -290,37 +290,37 @@ int evoc_mbctx_master_takeout(MB_CTX_T *mb_ctx, MB_MASTER_T *mb_master_info)
 
 /*
  * Function         : show response status from ModBus slaver
- * mb_master_info   : ModBus master info
+ * mb_info   : ModBus master info
  * return           : void
  */
-void mb_status_show(MB_MASTER_T mb_master_info)
+void mb_status_show(MB_INFO_T mb_info)
 {
-    if (!(mb_master_info.err))
+    if (!(mb_info.err))
     {
         printf("MB SUCCESS\n");
         return ;
     }
 
-    UINT8_T code = mb_master_info.code & (~0x80);
+    UINT8_T code = mb_info.code & (~0x80);
     int i = 0;
 
-    printf("MB ERROR CODE(0x%02x) : ", mb_master_info.err);
+    printf("MB ERROR CODE(0x%02x) : ", mb_info.err);
 
-    switch (mb_master_info.err)
+    switch (mb_info.err)
     {
         case MB_ERR_FUNC :
             printf("Invalid function code(0x%02x)\n", code);
             break;
 
         case MB_ERR_ADDR :
-            printf("Invalid register address(0x%02x)\n", mb_master_info.reg);
+            printf("Invalid register address(0x%02x)\n", mb_info.reg);
             break;
 
         case MB_ERR_DATA :
             printf("Invalid data\n");
-            for (i = 0; i < mb_master_info.n_byte; ++i)
+            for (i = 0; i < mb_info.n_byte; ++i)
             {
-                printf("Data[%d] : 0x%02x\n", i, mb_master_info.value[i]);
+                printf("Data[%d] : 0x%02x\n", i, mb_info.value[i]);
             }
             break;
 
@@ -352,45 +352,45 @@ void mb_status_show(MB_MASTER_T mb_master_info)
 
 /*
  * Function         : show ModBus data after decap
- * mb_master_info   : ModBus master info
+ * mb_info   : ModBus master info
  * return           : void
  */
-void mb_data_show(MB_MASTER_T mb_master_info)
+void mb_data_show(MB_INFO_T mb_info)
 {
     int i = 0;
 
-    if (mb_master_info.err)
+    if (mb_info.err)
     {
         return ;
     }
 
-    switch (mb_master_info.code)
+    switch (mb_info.code)
     {
         case MB_FUNC_01 : 
         case MB_FUNC_02 : 
         case MB_FUNC_03 : 
         case MB_FUNC_04 : 
-            printf("mb_master_info.code = 0x%02x\n", mb_master_info.code);
-            printf("mb_master_info.n_byte = %d\n", mb_master_info.n_byte);
+            printf("mb_info.code = 0x%02x\n", mb_info.code);
+            printf("mb_info.n_byte = %d\n", mb_info.n_byte);
             /* value */
-            for (i = 0; i < mb_master_info.n_byte; i++)
+            for (i = 0; i < mb_info.n_byte; i++)
             {
-                printf("mb_master_info.value[%d] = 0x%02x\n", i + 1, mb_master_info.value[i]);
+                printf("mb_info.value[%d] = 0x%02x\n", i + 1, mb_info.value[i]);
             }
             break;
             
         case MB_FUNC_05 : 
         case MB_FUNC_06 : 
-            printf("mb_master_info.code = 0x%02x\n", mb_master_info.code);
-            printf("mb_master_info.reg = 0x%04x\n", mb_master_info.reg);
-            printf("mb_master_info.value = 0x%04x\n", *(UINT16_T *)(&mb_master_info.value[0]));
+            printf("mb_info.code = 0x%02x\n", mb_info.code);
+            printf("mb_info.reg = 0x%04x\n", mb_info.reg);
+            printf("mb_info.value = 0x%04x\n", *(UINT16_T *)(&mb_info.value[0]));
             break;
             
         case MB_FUNC_0f : 
         case MB_FUNC_10 : 
-            printf("mb_master_info.code = %02x\n", mb_master_info.code);
-            printf("mb_master_info.reg = 0x%04x\n", mb_master_info.reg);
-            printf("mb_master_info.n_reg = 0x%04x\n", mb_master_info.n_reg);
+            printf("mb_info.code = %02x\n", mb_info.code);
+            printf("mb_info.reg = 0x%04x\n", mb_info.reg);
+            printf("mb_info.n_reg = 0x%04x\n", mb_info.n_reg);
             break;
             
         default :

@@ -128,22 +128,22 @@ void mb_data_encap(MB_DATA_T *mb_data)
     int j = 0;
     UINT8_T  byte = 0;
     UINT16_T word = 0;
-    MB_MASTER_T mb_master_info = mb_data->master_info;
+    MB_INFO_T mb_info = mb_data->mb_info;
 
     /* common */
     {
         /* function code */
-        MBDATA_BYTE_SET(mb_data, mb_master_info.code);
+        MBDATA_BYTE_SET(mb_data, mb_info.code);
 
         /* register address */
         if (mb_data->is_big_endian)
         {
-            mb_master_info.reg = l2b_endian(mb_master_info.reg);
+            mb_info.reg = l2b_endian(mb_info.reg);
         }
-        MBDATA_WORD_SET(mb_data, mb_master_info.reg);
+        MBDATA_WORD_SET(mb_data, mb_info.reg);
     }
 
-    switch (mb_master_info.code)
+    switch (mb_info.code)
     {
         case MB_FUNC_01 : 
         case MB_FUNC_02 : 
@@ -152,15 +152,15 @@ void mb_data_encap(MB_DATA_T *mb_data)
             /* register number */
             if (mb_data->is_big_endian)
             {
-                mb_master_info.n_reg = l2b_endian(mb_master_info.n_reg);
+                mb_info.n_reg = l2b_endian(mb_info.n_reg);
             }
-            MBDATA_WORD_SET(mb_data, mb_master_info.n_reg);
+            MBDATA_WORD_SET(mb_data, mb_info.n_reg);
             break;
             
         case MB_FUNC_05 :
         case MB_FUNC_06 : 
             /* register value */
-            word = *(UINT16_T *)(&mb_master_info.value[0]);
+            word = *(UINT16_T *)(&mb_info.value[0]);
             if (!mb_data->is_big_endian)
             {
                 word = l2b_endian(word);
@@ -172,21 +172,21 @@ void mb_data_encap(MB_DATA_T *mb_data)
             /* register number */
             if (mb_data->is_big_endian)
             {
-                mb_master_info.n_reg = l2b_endian(mb_master_info.n_reg);
+                mb_info.n_reg = l2b_endian(mb_info.n_reg);
             }
-            MBDATA_WORD_SET(mb_data, mb_master_info.n_reg);
+            MBDATA_WORD_SET(mb_data, mb_info.n_reg);
             
             /* value byte number */
-            mb_master_info.n_byte = ALIGNED(mb_data->master_info.n_reg, 8);
-            MBDATA_BYTE_SET(mb_data, mb_master_info.n_byte);
+            mb_info.n_byte = ALIGNED(mb_data->mb_info.n_reg, 8);
+            MBDATA_BYTE_SET(mb_data, mb_info.n_byte);
             
             /* value */
-            for (i  = 0; i < mb_master_info.n_byte && i < ITEM(mb_master_info.value); ++i)
+            for (i  = 0; i < mb_info.n_byte && i < ITEM(mb_info.value); ++i)
             {
                 byte = 0;
                 for (j = 0; j < 8; j++)
                 {
-                    byte |= (!!mb_master_info.value[(i * 8) + j]) << j;
+                    byte |= (!!mb_info.value[(i * 8) + j]) << j;
                 }
                 MBDATA_BYTE_SET(mb_data, byte); 
             }
@@ -196,18 +196,18 @@ void mb_data_encap(MB_DATA_T *mb_data)
             /* register number */
             if (mb_data->is_big_endian)
             {
-                mb_master_info.n_reg = l2b_endian(mb_master_info.n_reg);
+                mb_info.n_reg = l2b_endian(mb_info.n_reg);
             }
-            MBDATA_WORD_SET(mb_data, mb_master_info.n_reg);
+            MBDATA_WORD_SET(mb_data, mb_info.n_reg);
             
             /* value byte number */
-            mb_master_info.n_byte = mb_data->master_info.n_reg * 2;
-            MBDATA_BYTE_SET(mb_data, mb_master_info.n_byte);
+            mb_info.n_byte = mb_data->mb_info.n_reg * 2;
+            MBDATA_BYTE_SET(mb_data, mb_info.n_byte);
             
             /* value */
-            for (i  = 0; i < mb_master_info.n_byte && i < ITEM(mb_master_info.value); ++i)
+            for (i  = 0; i < mb_info.n_byte && i < ITEM(mb_info.value); ++i)
             {
-                MBDATA_BYTE_SET(mb_data, mb_master_info.value[i]); 
+                MBDATA_BYTE_SET(mb_data, mb_info.value[i]); 
             }   
             break;
             
@@ -226,65 +226,65 @@ void mb_data_decap(MB_DATA_T *mb_data)
     PTR_CHECK_VOID(mb_data);
 
     int i = 0;
-    MB_MASTER_T *mb_master_info = &(mb_data->master_info);
+    MB_INFO_T *mb_info = &(mb_data->mb_info);
 
     /* common */
     {
         /* function code */
-        MBDATA_BYTE_GET(mb_data, mb_master_info->code);
+        MBDATA_BYTE_GET(mb_data, mb_info->code);
     }
     
-    if (mb_master_info->code > 0x80)
+    if (mb_info->code > 0x80)
     {
         /* error code */
-        MBDATA_BYTE_GET(mb_data, mb_master_info->err);
+        MBDATA_BYTE_GET(mb_data, mb_info->err);
         return ;
     }
 
-    switch (mb_master_info->code)
+    switch (mb_info->code)
     {
         case MB_FUNC_01 : 
         case MB_FUNC_02 : 
         case MB_FUNC_03 : 
         case MB_FUNC_04 :             
             /* value byte number */
-            MBDATA_BYTE_GET(mb_data, mb_master_info->n_byte);
+            MBDATA_BYTE_GET(mb_data, mb_info->n_byte);
             
             /* value */
-            for (i = 0; i < mb_master_info->n_byte; i++)
+            for (i = 0; i < mb_info->n_byte; i++)
             {
-                MBDATA_BYTE_GET(mb_data, mb_master_info->value[i]);
+                MBDATA_BYTE_GET(mb_data, mb_info->value[i]);
             }
             break;
             
         case MB_FUNC_05 : 
         case MB_FUNC_06 : 
             /* register address */
-            MBDATA_WORD_GET(mb_data, mb_master_info->reg);
+            MBDATA_WORD_GET(mb_data, mb_info->reg);
             if (mb_data->is_big_endian)
             {
-                mb_master_info->reg = b2l_endian(mb_master_info->reg);
+                mb_info->reg = b2l_endian(mb_info->reg);
             }
         
             /* register value */
-            MBDATA_BYTE_GET(mb_data, mb_master_info->value[0]);
-            MBDATA_BYTE_GET(mb_data, mb_master_info->value[1]);
+            MBDATA_BYTE_GET(mb_data, mb_info->value[0]);
+            MBDATA_BYTE_GET(mb_data, mb_info->value[1]);
             break;
             
         case MB_FUNC_0f : 
         case MB_FUNC_10 : 
             /* register address */
-            MBDATA_WORD_GET(mb_data, mb_master_info->reg);
+            MBDATA_WORD_GET(mb_data, mb_info->reg);
             if (mb_data->is_big_endian)
             {
-                mb_master_info->reg = b2l_endian(mb_master_info->reg);
+                mb_info->reg = b2l_endian(mb_info->reg);
             }
         
             /* register number */
-            MBDATA_WORD_GET(mb_data, mb_master_info->n_reg);
+            MBDATA_WORD_GET(mb_data, mb_info->n_reg);
             if (mb_data->is_big_endian)
             {
-                mb_master_info->n_reg = b2l_endian(mb_master_info->n_reg);
+                mb_info->n_reg = b2l_endian(mb_info->n_reg);
             }
             break;
             
