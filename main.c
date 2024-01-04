@@ -12,7 +12,22 @@
 
 #include "evoc_mb.h"
 
-#define EVOCMB_QUIT (88)
+enum
+{
+    EVOCMB_QUIT = 0x100,
+    EVOCMB_STAY,
+    EVOCMB_UNSTAY,
+};
+
+static struct 
+{
+    char    *cmd;
+    UINT16_T code;
+} cmd_code_map[] = {
+    { "exit",   EVOCMB_QUIT },
+    { "stay",   EVOCMB_STAY },
+    { "unstay", EVOCMB_UNSTAY }
+};
 
 static UINT8_T running = 1;
 
@@ -201,34 +216,50 @@ static int commad_select(MB_INFO_T *mb_info)
     PTR_CHECK_N1(mb_info);
 
     int i = 0;
-    UINT8_T  code = 0;
+    UINT16_T  code = 0;
     char commad[32] = {0};
 
     memset(mb_info, 0, sizeof(MB_INFO_T));
 
-    printf( "\n"
-            "   *********************************************************\n"
-            "   *                          MENU                         *\n"
-            "   *********************************************************\n"
-            "   *  [   1]. Function code : 0x01 Read output IO coils    *\n"
-            "   *  [   2]. FunCtion code : 0x02 Read output IO coils    *\n"
-            "   *  [   3]. FunCtion code : 0x03 Read hold register      *\n"
-            "   *  [   4]. FunCtion code : 0x04 Read input register     *\n"
-            "   *  [   5]. FunCtion code : 0x05 Write a coil            *\n"
-            "   *  [   6]. FunCtion code : 0x06 Write a register        *\n"
-            "   *  [  15]. FunCtion code : 0x0F Write multiple coils    *\n"
-            "   *  [  16]. FunCtion code : 0x10 Write multiple register *\n"
-            "   *  [exit]. Exit                                         *\n"
-            "   *********************************************************\n\n");
+    printf( "   ***********************************************************\n"
+            "   *                          MENU                           *\n"
+            "   ***********************************************************\n"
+            "   *  [     1]. Function code : 0x01 Read output IO coils    *\n"
+            "   *  [     2]. FunCtion code : 0x02 Read output IO coils    *\n"
+            "   *  [     3]. FunCtion code : 0x03 Read hold register      *\n"
+            "   *  [     4]. FunCtion code : 0x04 Read input register     *\n"
+            "   *  [     5]. FunCtion code : 0x05 Write a coil            *\n"
+            "   *  [     6]. FunCtion code : 0x06 Write a register        *\n"
+            "   *  [    15]. FunCtion code : 0x0F Write multiple coils    *\n"
+            "   *  [    16]. FunCtion code : 0x10 Write multiple register *\n"
+            "   *  [  stay]. Stay connect                                 *\n"
+            "   *  [unstay]. Unstay connect                               *\n"
+            "   *  [  exit]. Exit                                         *\n"
+            "   ***********************************************************\n\n");
     
     printf("Please input code:\n");
-    fgets(commad, sizeof(commad), stdin);
-
-    if (!strncasecmp(commad, "exit", 4))
+    do 
     {
-        code = EVOCMB_QUIT;
+        fgets(commad, sizeof(commad), stdin);
+
+        commad[strlen(commad) - 1] = 0;
+        
+        if (strlen(commad))
+        {
+            break;
+        }
+    } while (1);
+    
+    for (i = 0; i < ITEM(cmd_code_map); ++i)
+    {
+        if (!strncasecmp(commad, cmd_code_map[i].cmd, strlen(cmd_code_map[i].cmd)))
+        {
+            code = cmd_code_map[i].code;
+            break;
+        }
     }
-    else
+
+    if (!code)
     {
         code = strtol(commad, NULL, 0);
     }
@@ -293,8 +324,10 @@ static int commad_select(MB_INFO_T *mb_info)
             }
             break;
             
+        case EVOCMB_STAY :
+        case EVOCMB_UNSTAY :
         case EVOCMB_QUIT :
-            return EVOCMB_QUIT;
+            return code;
             
         default :
             printf("Invalid command(%s) code(%d)\n", commad, (int)mb_info->code);
@@ -304,13 +337,26 @@ static int commad_select(MB_INFO_T *mb_info)
     return (mb_info->code = code);
 }
 
-static void evocmb_data_print(MB_INFO_T mb_info)
+static void work_mode_show(EVOCMB_CTX_T *mb_ctx)
+{
+    PTR_CHECK_VOID(mb_ctx);
+
+    UINT8_T stay = 0;
+
+    evoc_mb_stay_get(mb_ctx, &stay);
+
+    printf("\n"
+            "   ***********************************************************\n"
+            "   *  [ WORK MODE : %6s ]                                 *\n", stay ? "STAY" : "UNSTAY");
+}
+
+static void response_show(MB_INFO_T mb_info)
 {
     /* Show response status */
-    mb_status_show(mb_info);
+    evoc_mb_status_show(mb_info);
 
     /* Show response data */
-    mb_data_show(mb_info);
+    evoc_mb_data_show(mb_info);
 }
 
 /*
@@ -322,11 +368,12 @@ static int work(EVOCMB_CTX_T *mb_ctx)
 {
     PTR_CHECK_N1(mb_ctx);
 
-    int ret = 0;
+    int       ret  = 0;
+    MB_INFO_T mb_info;
 
     while (running)
     {
-        MB_INFO_T mb_info;
+        work_mode_show(mb_ctx);
 
         /* select a commad */
         if (0 > (ret = commad_select(&mb_info)))
@@ -338,6 +385,12 @@ static int work(EVOCMB_CTX_T *mb_ctx)
         if (EVOCMB_QUIT == ret)
         {
             break;
+        }
+
+        if (EVOCMB_STAY == ret || EVOCMB_UNSTAY == ret)
+        {
+            evoc_mb_stay_set(mb_ctx, (EVOCMB_STAY == ret));
+            continue;
         }
 
         /* send a modbsu request */
@@ -355,7 +408,7 @@ static int work(EVOCMB_CTX_T *mb_ctx)
         }
 
         /* Show response */
-        evocmb_data_print(mb_info);
+        response_show(mb_info);
     }
 
     return 0;

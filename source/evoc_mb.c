@@ -124,22 +124,25 @@ static void *stay_connected_routine(void *arg)
 
     pthread_detach(pthread_self());
 
+    UINT8_T stay = 0;
     EVOCMB_CTX_T *mb_ctx = (EVOCMB_CTX_T *)arg;
 
-#ifdef MB_STAY
+    MB_INFO_T mb_info = {
+        .code  = MB_FUNC_01,
+        .reg   = 0x0000,
+        .n_reg = 16
+    };
+
     while (1)
-#else
-    while (0)
-#endif
     {
         sleep(1);
 
-        MB_INFO_T mb_info;
+        evoc_mb_stay_get(mb_ctx, &stay);
 
-        memset(&mb_info, 0, sizeof(MB_INFO_T));
-        mb_info.code    = MB_FUNC_01;
-        mb_info.reg     = 0x0000;
-        mb_info.n_reg   = 16;
+        if (!stay)
+        {
+            continue;
+        }
 
         /* send a modbsu request */
         if (0 > evoc_mb_send(mb_ctx, &mb_info))
@@ -341,12 +344,42 @@ int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
     return length;
 }
 
+void evoc_mb_stay_set(EVOCMB_CTX_T *mb_ctx, UINT8_T stay)
+{
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
+    PTR_CHECK_VOID(mb_ctx);
+
+    LOCK(&(mb_ctx->mb_resc.lock));
+
+    mb_ctx->mb_resc.stay = stay;
+
+    ULOCK(&(mb_ctx->mb_resc.lock));
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+}
+
+void evoc_mb_stay_get(EVOCMB_CTX_T *mb_ctx, UINT8_T *stay)
+{
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
+    PTR_CHECK_VOID(mb_ctx);
+
+    LOCK(&(mb_ctx->mb_resc.lock));
+
+    *stay = mb_ctx->mb_resc.stay;
+
+    ULOCK(&(mb_ctx->mb_resc.lock));
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+}
+
 /*
  * Function  : show response status from ModBus slaver
  * mb_info   : ModBus master info
  * return    : void
  */
-void mb_status_show(MB_INFO_T mb_info)
+void evoc_mb_status_show(MB_INFO_T mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -412,7 +445,7 @@ void mb_status_show(MB_INFO_T mb_info)
  * mb_info   : ModBus master info
  * return    : void
  */
-void mb_data_show(MB_INFO_T mb_info)
+void evoc_mb_data_show(MB_INFO_T mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 

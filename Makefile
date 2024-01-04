@@ -1,33 +1,26 @@
-## define
-CC 		:= gcc
-APP 	:= evoc_mb_demo
-SRCS 	:= evoc_mb.c mb_common.c mb_tcp.c mb_rtu.c
+CC := gcc
+
+RELEASE_DIR := release
+BITNAME 	:= $(shell getconf LONG_BIT)
+LIBNAME 	:= $(RELEASE_DIR)/lib/liblinux$(BITNAME)modbus
+APP 		:= $(RELEASE_DIR)/bin/evoc_mb_demo
+V			:= 0
+
 CFLAGS 	:= -g
-CFLAGS 	+= -I .
-CFLAGS 	+= -lpthread
+CFLAGS 	+= -I $(RELEASE_DIR)/include
 CFLAGS 	+= -Wall -Werror
-
-debug   := no
-stay    := no
-V		:= 0
-
-ifeq ($(debug),yes)
-	CFLAGS 	+= -DMB_DEBUG
-endif
-
-ifeq ($(stay),yes)
-	CFLAGS 	+= -DMB_STAY
-endif
 
 ALL :
 	@echo "EVOC ModBus compiling"
-ifeq ($(V),99)
-## target
-	$(CC) $(CFLAGS) main.c $(SRCS) -o $(APP)
-else
-	@$(CC) $(CFLAGS) main.c $(SRCS) -o $(APP)
-endif
+	@make --no-print-directory -f source/Makefile MBAPIDIR=source
+	@mkdir -p $(RELEASE_DIR)
+	@mkdir -p $(RELEASE_DIR)/bin
+	@cp source/lib $(RELEASE_DIR) -rf
+	@cp source/include $(RELEASE_DIR) -rf
+	@cp README.md $(RELEASE_DIR) -rf
+	@$(CC) $(CFLAGS) main.c $(SRCS) $(LIBNAME).a -o $(APP)
 	@echo "EVOC ModBus compile SUCCESS"
 
 clean :
-	rm $(APP) -rf
+	@make --no-print-directory -f source/Makefile MBAPIDIR=source clean
+	@rm $(RELEASE_DIR) -rf

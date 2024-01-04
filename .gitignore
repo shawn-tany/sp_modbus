@@ -1,2 +1,6 @@
 .svn/
-evoc_mb_demo
+release
+source/lib
+source/include
+source/*.o
+source/ModBus/*.o
