@@ -73,6 +73,8 @@ UINT16_T b2l_endian(UINT16_T value)
  */
 MB_DATA_T *mb_data_create(UINT32_T max_data_size)
 {
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
     MB_DATA_T *mb_data = NULL;
 
     /* create evoc modbus data cache */
@@ -86,6 +88,8 @@ MB_DATA_T *mb_data_create(UINT32_T max_data_size)
     mb_data->max_data_len  = max_data_size;
     mb_data->is_big_endian = is_big_endian();
 
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
     return mb_data;
 }
 
@@ -96,9 +100,13 @@ MB_DATA_T *mb_data_create(UINT32_T max_data_size)
  */
 void mb_data_destory(MB_DATA_T *mb_data)
 {
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
     PTR_CHECK_VOID(mb_data);
 
     free(mb_data);
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }
 
 /*
@@ -108,11 +116,15 @@ void mb_data_destory(MB_DATA_T *mb_data)
  */
 void mb_data_clear(MB_DATA_T *mb_data)
 {
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
     PTR_CHECK_VOID(mb_data);
     
     memset(mb_data->data, 0, mb_data->max_data_len);
     mb_data->data_len = 0;
     mb_data->offset   = 0;
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }
 
 /*
@@ -122,6 +134,8 @@ void mb_data_clear(MB_DATA_T *mb_data)
  */
 void mb_data_encap(MB_DATA_T *mb_data)
 {
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
     PTR_CHECK_VOID(mb_data);
 
     int i = 0;
@@ -214,6 +228,8 @@ void mb_data_encap(MB_DATA_T *mb_data)
         default :
             break;
     }
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }
 
 /*
@@ -223,6 +239,8 @@ void mb_data_encap(MB_DATA_T *mb_data)
  */
 void mb_data_decap(MB_DATA_T *mb_data)
 {
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
     PTR_CHECK_VOID(mb_data);
 
     int i = 0;
@@ -233,8 +251,8 @@ void mb_data_decap(MB_DATA_T *mb_data)
         /* function code */
         MBDATA_BYTE_GET(mb_data, mb_info->code);
     }
-    
-    if (mb_info->code > 0x80)
+
+    if (0x80 < mb_info->code)
     {
         /* error code */
         MBDATA_BYTE_GET(mb_data, mb_info->err);
@@ -291,6 +309,8 @@ void mb_data_decap(MB_DATA_T *mb_data)
         default :
             break;
     }
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }
 
 /*
@@ -300,6 +320,8 @@ void mb_data_decap(MB_DATA_T *mb_data)
  */
 void mb_cache_show(MB_DATA_T *mb_data)
 {
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
     PTR_CHECK_VOID(mb_data);
 
     int i = 0;
@@ -308,4 +330,6 @@ void mb_cache_show(MB_DATA_T *mb_data)
     {
         printf("MB cache data[%d] : 0x%02x\n", i, mb_data->data[i]);
     }
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }

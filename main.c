@@ -71,32 +71,32 @@ static struct option long_options[] = {
 };
 
 /*
- * Function  : show ModBus demo option of command line
+ * Function  : show ModBus demo option of commad line
  * Parameter : void
  * return    : void
  */
 static void help(void)
 {
     printf( "\nOPTIONS :\n"
-            "   --type,            Select ModBus protocol type\n"
-            "   --max_data_size,   Limit ModBus transform data cache size\n"
-            "   --ip,              ModBus TCP server ip\n"
-            "   --port,            ModBus TCP server port\n"
-            "   --ethdev,          ModBus TCP ethernet device for transform\n"
-            "   --serial,          Select ModBus RTU serial\n"
-            "   --buadrate,        Set ModBus RTU baudrate\n"
-            "   --databit,         Set ModBus RTU data bit\n"
-            "   --stopbit,         Set ModBus RTU stop bit\n"
-            "   --flowctl,         Set ModBus RTU flow control\n"
-            "   --parity,          Set ModBus RTU parity\n"
-            "   --slaver,          Set ModBus RTU slaver address\n"
+            "   --type,            Select ModBus protocol type [tcp|rtu]\n"
+            "   --max_data_size,   Limit ModBus transform data cache size [1400]\n"
+            "   --ip,              ModBus TCP server ip [192.168.1.12]\n"
+            "   --port,            ModBus TCP server port [502]\n"
+            "   --ethdev,          ModBus TCP ethernet device for transform [eth0]\n"
+            "   --serial,          Select ModBus RTU serial [/dev/ttyUSB0]\n"
+            "   --buadrate,        Set ModBus RTU baudrate [9600]\n"
+            "   --databit,         Set ModBus RTU data bit [8]\n"
+            "   --stopbit,         Set ModBus RTU stop bit [1]\n"
+            "   --flowctl,         Set ModBus RTU flow control [0]\n"
+            "   --parity,          Set ModBus RTU parity [0]\n"
+            "   --slaver,          Set ModBus RTU slaver address [1]\n"
             "   --help,            Show EVOC ModBus demo options\n\n");
 }
 
 /*
- * Function  : parse ModBus demo option of command line
- * argc      : parameter number of command line
- * argv      : parameter list of command line
+ * Function  : parse ModBus demo option of commad line
+ * argc      : parameter number of commad line
+ * argv      : parameter list of commad line
  * return    : 0=SUCCESS -1=ERROR
  */
 static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
@@ -182,15 +182,21 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
         }
     }
 
+    ctl->tcp_ctrl.max_data_size = ctl->max_data_size;
+    ctl->rtu_ctrl.max_data_size = ctl->max_data_size;
+
+    ctl->tcp_ctrl.unitid        = ctl->slaver_addr;
+    ctl->rtu_ctrl.slaver_addr   = ctl->slaver_addr;
+
     return 0;
 }
 
 /*
- * Function       : Select a ModBus function, and fill in relevant data
- * mb_info : the data information to be ModBus sent to the ModBus slaver from master
- * return         : (ModBus function code)=SUCCESS -1=ERROR
+ * Function     : Select a ModBus function, and fill in relevant data
+ * mb_info      : the data information to be ModBus sent to the ModBus slaver from master
+ * return       : (ModBus function code)=SUCCESS -1=ERROR
  */
-static int command_select(MB_INFO_T *mb_info)
+static int commad_select(MB_INFO_T *mb_info)
 {
     PTR_CHECK_N1(mb_info);
 
@@ -216,15 +222,15 @@ static int command_select(MB_INFO_T *mb_info)
             "   *********************************************************\n\n");
     
     printf("Please input code:\n");
-    scanf("%s", commad);
+    fgets(commad, sizeof(commad), stdin);
 
-    if (!strcasecmp(commad, "exit"))
+    if (!strncasecmp(commad, "exit", 4))
     {
         code = EVOCMB_QUIT;
     }
     else
     {
-        code = strtol(commad, NULL, 10);
+        code = strtol(commad, NULL, 0);
     }
 
     switch (code)
@@ -234,46 +240,56 @@ static int command_select(MB_INFO_T *mb_info)
         case MB_FUNC_03 :
         case MB_FUNC_04 :
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_info->reg);
+            fgets(commad, sizeof(commad), stdin);
+            mb_info->reg = strtol(commad, NULL, 0);
 
             printf("Please input register number\n");
-            scanf("%hd", &mb_info->n_reg);
+            fgets(commad, sizeof(commad), stdin);
+            mb_info->n_reg = strtol(commad, NULL, 0);
             break;
             
         case MB_FUNC_05 :
         case MB_FUNC_06 : 
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_info->reg);
+            fgets(commad, sizeof(commad), stdin);
+            mb_info->reg = strtol(commad, NULL, 0);
 
             printf("Please input hexadecimal register value\n");
-            scanf("%hx", (UINT16_T *)(&mb_info->value[0]));
+            fgets(commad, sizeof(commad), stdin);
+            *((UINT16_T *)(&mb_info->value[0])) = strtol(commad, NULL, 0);
             break;
             
         case MB_FUNC_0f : 
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_info->reg);
+            fgets(commad, sizeof(commad), stdin);
+            mb_info->reg = strtol(commad, NULL, 0);
 
             printf("Please input coils number\n");
-            scanf("%hd", &mb_info->n_reg);
+            fgets(commad, sizeof(commad), stdin);
+            mb_info->n_reg = strtol(commad, NULL, 0);
 
             for (i = 0; i < mb_info->n_reg; ++i)
             {
                 printf("Please input %dth coil value\n", i + 1);
-                scanf("%hhd", (UINT8_T *)(&mb_info->value[i]));
+                fgets(commad, sizeof(commad), stdin);
+                mb_info->value[i] = strtol(commad, NULL, 0);
             }
             break;
             
         case MB_FUNC_10 : 
             printf("Please input hexadecimal register address\n");
-            scanf("%hx", &mb_info->reg);
+            fgets(commad, sizeof(commad), stdin);
+            mb_info->reg = strtol(commad, NULL, 0);
 
             printf("Please input register number\n");
-            scanf("%hd", &mb_info->n_reg);
+            fgets(commad, sizeof(commad), stdin);
+            mb_info->n_reg = strtol(commad, NULL, 0);
 
             for (i = 0; i < mb_info->n_reg; ++i)
             {
                 printf("Please input %dth hexadecimal register value\n", i + 1);
-                scanf("%hx", (UINT16_T *)(&mb_info->value[i * 2]));
+                fgets(commad, sizeof(commad), stdin);
+                *((UINT16_T *)(&mb_info->value[i * 2])) = strtol(commad, NULL, 0);
             }
             break;
             
@@ -281,7 +297,7 @@ static int command_select(MB_INFO_T *mb_info)
             return EVOCMB_QUIT;
             
         default :
-            printf("Invalid code %d\n", (int)mb_info->code);
+            printf("Invalid command(%s) code(%d)\n", commad, (int)mb_info->code);
             return -1;
     }
 
@@ -298,11 +314,11 @@ static void evocmb_data_print(MB_INFO_T mb_info)
 }
 
 /*
- * Function       : work entrance of ModBus demo
- * mb_info : debugging all functions of ModBus demo
- * return         : (ModBus function code)=SUCCESS -1=ERROR
+ * Function : work entrance of ModBus demo
+ * mb_info  : debugging all functions of ModBus demo
+ * return   : (ModBus function code)=SUCCESS -1=ERROR
  */
-static int work(MB_CTX_T *mb_ctx)
+static int work(EVOCMB_CTX_T *mb_ctx)
 {
     PTR_CHECK_N1(mb_ctx);
 
@@ -312,10 +328,10 @@ static int work(MB_CTX_T *mb_ctx)
     {
         MB_INFO_T mb_info;
 
-        /* select a command */
-        if (0 > (ret = command_select(&mb_info)))
+        /* select a commad */
+        if (0 > (ret = commad_select(&mb_info)))
         {
-            printf("ERROR : Command set failed\n");
+            printf("ERROR : commad set failed\n");
             continue;
         }
         
@@ -324,31 +340,17 @@ static int work(MB_CTX_T *mb_ctx)
             break;
         }
 
-        /* updata master info */
-        if (0 > evoc_mbctx_master_updata(mb_ctx, mb_info))
-        {
-            printf("ERROR : ModBus context updata master info failed\n");
-            continue;
-        }
-
         /* send a modbsu request */
-        if (0 > evoc_mb_send(mb_ctx))
+        if (0 > evoc_mb_send(mb_ctx, &mb_info))
         {
             printf("ERROR : ModBus send request failed\n");
             continue;
         }
 
         /* recv a modbus response */
-        if (0 > evoc_mb_recv(mb_ctx))
+        if (0 > evoc_mb_recv(mb_ctx, &mb_info))
         {
             printf("ERROR : ModBus recv response failed\n");
-            continue;
-        }
-
-        /* take out modbus master info from slave respose */
-        if (0 > evoc_mbctx_master_takeout(mb_ctx, &mb_info))
-        {
-            printf("ERROR : Modbus master info take out from context failed\n");
             continue;
         }
 
@@ -361,7 +363,7 @@ static int work(MB_CTX_T *mb_ctx)
 
 int main(int argc, char *argv[ ])
 {
-    MB_CTX_T *mb_ctx = NULL;    
+    EVOCMB_CTX_T *mb_ctx = NULL;    
     EVOCMB_CTL_T ctl = default_ctl;
 
     arg_parse(argc, argv, &ctl);

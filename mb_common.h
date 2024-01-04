@@ -110,6 +110,13 @@ typedef enum
     MB_ERR_UNRESPONSIVE = 0x0B
 } MB_ERR_T;
 
+typedef enum 
+{
+    MB_RX = 0,
+    MB_TX,
+    MB_DIRECT_NUM,
+} MB_DIRECT_T;
+
 typedef enum
 {
     MB_TYPE_TCP = 0,
@@ -124,22 +131,8 @@ typedef union
         UINT8_T low8;
     } B2;
     
-    UINT16_T W1; 
-    
+    UINT16_T W1;
 } __attribute__((packed)) MB_WORD_T;
-
-typedef union
-{
-    struct 
-    {
-        int socket;
-    } mb_tcp_desc;
-
-    struct
-    {
-        int com_fd;
-    } mb_rtu_desc;
-} __attribute__((packed)) MB_DESC_T;
 
 #define MAX_MBVALUE_SIZE 2000 /* byte */
 
@@ -151,15 +144,13 @@ typedef struct
     UINT16_T  n_reg;
     UINT8_T   n_byte;
     UINT8_T   value[MAX_MBVALUE_SIZE];
-    UINT16_T  checksum;
 } __attribute__((packed)) MB_INFO_T;
 
 typedef struct 
 {
     /* data endian */
     UINT8_T is_big_endian;
-    UINT8_T slave_addr;
-
+    
     /* modbus info */
     MB_INFO_T mb_info;
 
