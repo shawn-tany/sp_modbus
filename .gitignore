@@ -2,5 +2,9 @@
 release
 source/lib
 source/include
-source/*.o
-source/ModBus/*.o
+source/bin
+source/cli
+source/src/lib
+source/src/include
+source/src/*.o
+source/src/ModBus/*.o

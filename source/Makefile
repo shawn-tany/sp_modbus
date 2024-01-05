@@ -1,54 +1,60 @@
 CC := gcc
 
-MBAPIDIR := .
+RELEASE_DIR := ../release
+LIB_DIR     := ./lib
+INC_DIR     := ./include
+BIN_DIR     := ./bin
 
-BITNAME := $(shell getconf LONG_BIT)
-
-LIBNAME := liblinux$(BITNAME)modbus
-
-SRCS := $(MBAPIDIR)/evoc_mb.c
-SRCS += $(MBAPIDIR)/ModBus/mb_common.c
-SRCS += $(MBAPIDIR)/ModBus/mb_tcp.c
-SRCS += $(MBAPIDIR)/ModBus/mb_rtu.c
-
-INCS := $(MBAPIDIR)/evoc_mb.h
-INCS += $(MBAPIDIR)/ModBus/mb_common.h
-INCS += $(MBAPIDIR)/ModBus/mb_tcp.h
-INCS += $(MBAPIDIR)/ModBus/mb_rtu.h
-
-OBJS := $(patsubst %.c,%.o,$(SRCS))
+BITNAME     := $(shell getconf LONG_BIT)
+LIBNAME     := $(LIB_DIR)/liblinux$(BITNAME)modbus
+APP         := $(BIN_DIR)/evoc_mb_demo
+PACKAGE     := $(RELEASE_DIR)/evoc_modbus.tar.gz
+V           := 0
 
 CFLAGS 	:= -g
-CFLAGS 	+= -I .
-CFLAGS 	+= -I $(MBAPIDIR)/ModBus
-CFLAGS 	+= -lpthread
+CFLAGS 	+= -I $(INC_DIR)
 CFLAGS 	+= -Wall -Werror
+CFLAGS 	+= -lpthread 
 
-LIB_DIR := $(MBAPIDIR)/lib
-INC_DIR := $(MBAPIDIR)/include
-
-debug   := no
-
-ifeq ($(debug),yes)
-	CFLAGS 	+= -DMB_DEBUG
+static=no
+ifeq ($(static),yes)
+	LIB_LINK = $(LIBNAME).a
+else
+	LIB_LINK = -llinux$(BITNAME)modbus -L $(LIB_DIR)
 endif
 
 ifneq ($(V),99)
 	HIDE=@
 endif
 
-ALL : $(OBJS)
-	$(HIDE) mkdir -p $(LIB_DIR)
-	$(HIDE) mkdir -p $(INC_DIR)
-	$(HIDE) $(CC) -fPIC -shared $(OBJS) -o $(LIB_DIR)/$(LIBNAME).so 
-	$(HIDE) ar rcs $(LIB_DIR)/$(LIBNAME).a $(OBJS)
-	$(HIDE) cp $(INCS) $(INC_DIR)
+.PHONY: install release
 
-%.o : %.c 
-	$(HIDE) $(CC) $(CFLAGS) -c -fPIC -o $@ $<
+ALL : clean
+	@echo "EVOC ModBus compiling"
+	@## build libraries
+	$(HIDE) make --no-print-directory -f src/Makefile MBAPIDIR=src
+	$(HIDE) cp src/lib . -rf
+	$(HIDE) cp src/include . -rf
+	@## build app
+	$(HIDE) mkdir -p $(BIN_DIR)
+	$(HIDE) $(CC) $(CFLAGS) main.c $(SRCS) $(LIB_LINK) -o $(APP)
+	@echo "EVOC ModBus compile SUCCESS"
 
 clean :
-	$(HIDE) rm -rf $(OBJS)
-	$(HIDE) rm -rf $(LIB_DIR)
-	$(HIDE) rm -rf $(INC_DIR)
+	$(HIDE) make --no-print-directory -f src/Makefile MBAPIDIR=src clean
+	$(HIDE) rm $(RELEASE_DIR) -rf
 
+install :
+	$(HIDE) cp $(LIBNAME).* /usr/lib
+	$(HIDE) cp $(LIBNAME).* /usr/lib$(BITNAME)
+	$(HIDE) cp $(APP) /usr/bin
+	$(HIDE) cp $(APP) /usr/sbin
+
+release :
+	$(HIDE) mkdir -p $(RELEASE_DIR)
+	$(HIDE) cp README.md  $(RELEASE_DIR) -rf
+	$(HIDE) cp install  $(RELEASE_DIR) -rf
+	$(HIDE) cp $(BIN_DIR) $(RELEASE_DIR) -rf
+	$(HIDE) cp $(LIB_DIR) $(RELEASE_DIR) -rf
+	$(HIDE) cp $(INC_DIR) $(RELEASE_DIR) -rf
+	$(HIDE) tar -zcPf $(PACKAGE) -C $(RELEASE_DIR) ./

@@ -1,11 +1,22 @@
 ## compile parameters
 #
+# delete intermediate files and compile
 * make clean;make
 #
-# V=99 : show compilation details,default to V=0
+# compile using static libraries,default to using shared libraries
+* make static=yes
+# 
+# installing software packages
+# !! this operation must be performed before running a program compiled from a shared libraries
+* make install
+#
+# packaging software and development libraries
+* make realease
+#
+# show compilation details,default to V=0
 * make V=99
 #
-# debug : dispaly debugging information,such as cached data,default to no
+# dispaly debugging information,such as cached data,default to no
 * make debug=yes
 #
 ##
