@@ -1,9 +1,9 @@
 CC := gcc
 
 RELEASE_DIR := ../release
-LIB_DIR     := ./lib
-INC_DIR     := ./include
-BIN_DIR     := ./bin
+LIB_DIR     := lib
+INC_DIR     := include
+BIN_DIR     := bin
 
 BITNAME     := $(shell getconf LONG_BIT)
 LIBNAME     := $(LIB_DIR)/liblinux$(BITNAME)modbus
@@ -57,4 +57,4 @@ release :
 	$(HIDE) cp $(BIN_DIR) $(RELEASE_DIR) -rf
 	$(HIDE) cp $(LIB_DIR) $(RELEASE_DIR) -rf
 	$(HIDE) cp $(INC_DIR) $(RELEASE_DIR) -rf
-	$(HIDE) tar -zcPf $(PACKAGE) -C $(RELEASE_DIR) ./
+	$(HIDE) tar -zcPf $(PACKAGE) README.md install $(BIN_DIR) $(LIB_DIR) $(INC_DIR)
