@@ -40,7 +40,7 @@ endif
 ALL : $(OBJS)
 	$(HIDE) mkdir -p $(LIB_DIR)
 	$(HIDE) mkdir -p $(INC_DIR)
-	$(HIDE) $(CC) -fPIC -shared $(OBJS) -o $(LIB_DIR)/$(LIBNAME).so
+	$(HIDE) $(CC) -fPIC -shared $(OBJS) -o $(LIB_DIR)/$(LIBNAME).so 
 	$(HIDE) ar rcs $(LIB_DIR)/$(LIBNAME).a $(OBJS)
 	$(HIDE) cp $(INCS) $(INC_DIR)
 

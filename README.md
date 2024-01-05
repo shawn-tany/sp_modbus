@@ -1,7 +1,7 @@
 ## compile parameters
 #
-# stay : stay connect,avoid restoring default configuration due to timeout,default to no
-* make stay=yes
+# V=99 : show compilation details,default to V=0
+* make V=99
 #
 # debug : dispaly debugging information,such as cached data,default to no
 * make debug=yes
@@ -33,3 +33,5 @@
 * sudo ./evoc_mb_demo --type rtu --serial /dev/ttyUSB0 --baudrate 9600 --databit 8 --parity 0 --stopbit 1 --flowctl 0 --slaver 1 --max_data_size 1400
 #
 ## 
+
+

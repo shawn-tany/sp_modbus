@@ -9,6 +9,7 @@ V			:= 0
 CFLAGS 	:= -g
 CFLAGS 	+= -I $(RELEASE_DIR)/include
 CFLAGS 	+= -Wall -Werror
+CFLAGS 	+= -lpthread 
 
 ALL :
 	@echo "EVOC ModBus compiling"
