@@ -42,6 +42,9 @@ ALL : clean
 
 clean :
 	$(HIDE) make --no-print-directory -f src/Makefile MBAPIDIR=src clean
+	$(HIDE) rm $(BIN_DIR) -rf
+	$(HIDE) rm $(LIB_DIR) -rf
+	$(HIDE) rm $(INC_DIR) -rf
 
 install :
 	$(HIDE) cp $(LIBNAME).* /usr/lib
