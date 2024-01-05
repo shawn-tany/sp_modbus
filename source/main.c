@@ -33,22 +33,24 @@ static UINT8_T running = 1;
 
 EVOCMB_CTL_T default_ctl = {
     .mb_type = MB_TYPE_RTU,
-    .max_data_size = 1400,
-    .slaver_addr = 1,
 
     .tcp_ctrl = {
-        .port = 502,
-        .ip   = "192.168.1.12",
-        .ethdev = "enp1s0"
+        .port          = 502,
+        .ip            = "192.168.1.12",
+        .ethdev        = "enp1s0",
+        .max_data_size = 1400,
+        .unitid        = 1,
     },
 
     .rtu_ctrl = {
-        .baudrate = 9600,
-        .databit  = 8,
-        .stopbit  = 1,
-        .flowctl  = 0,
-        .parity   = 0,
-        .serial   = "/dev/ttyUSB0"
+        .baudrate      = 9600,
+        .databit       = 8,
+        .stopbit       = 1,
+        .flowctl       = 0,
+        .parity        = 0,
+        .serial        = "/dev/ttyUSB0",
+        .max_data_size = 1400,
+        .slaver_addr   = 1,
     }
 };
 
@@ -143,11 +145,11 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
                 break;
 
             case EVOCMB_OPT_MAX_DATA_SIZE :
-                ctl->max_data_size = strtol(optarg, NULL, 10);
+                ctl->tcp_ctrl.max_data_size = ctl->rtu_ctrl.max_data_size = strtol(optarg, NULL, 10);
                 break;
         
             case EVOCMB_OPT_SLAVER :
-                ctl->slaver_addr = strtol(optarg, NULL, 0);
+                ctl->tcp_ctrl.unitid = ctl->rtu_ctrl.slaver_addr = strtol(optarg, NULL, 0);
                 break;
 
             case EVOCMB_OPT_IP :
@@ -196,12 +198,6 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
                 exit(2);
         }
     }
-
-    ctl->tcp_ctrl.max_data_size = ctl->max_data_size;
-    ctl->rtu_ctrl.max_data_size = ctl->max_data_size;
-
-    ctl->tcp_ctrl.unitid        = ctl->slaver_addr;
-    ctl->rtu_ctrl.slaver_addr   = ctl->slaver_addr;
 
     return 0;
 }
@@ -347,7 +343,7 @@ static void work_mode_show(EVOCMB_CTX_T *mb_ctx)
 
     printf("\n"
             "   ***********************************************************\n"
-            "   *  [ WORK MODE : %6s ]                                 *\n", stay ? "STAY" : "UNSTAY");
+            "   * [ work mode : %-6s ]                                  *\n", stay ? "stay" : "unstay");
 }
 
 static void response_show(MB_INFO_T mb_info)

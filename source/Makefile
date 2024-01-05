@@ -21,6 +21,7 @@ ifeq ($(static),yes)
 	LIB_LINK = $(LIBNAME).a
 else
 	LIB_LINK = -llinux$(BITNAME)modbus -L $(LIB_DIR)
+	NOTE     = (echo "\nnote : you should execute make install")
 endif
 
 ifneq ($(V),99)
@@ -39,6 +40,7 @@ ALL : clean
 	$(HIDE) mkdir -p $(BIN_DIR)
 	$(HIDE) $(CC) $(CFLAGS) main.c $(SRCS) $(LIB_LINK) -o $(APP)
 	@echo "EVOC ModBus compile SUCCESS"
+	$(HIDE) $(NOTE)
 
 clean :
 	$(HIDE) make --no-print-directory -f src/Makefile MBAPIDIR=src clean

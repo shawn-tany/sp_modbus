@@ -13,13 +13,15 @@
 #include "mb_tcp.h"
 #include "mb_rtu.h"
 
-#define EVOCMB_MSG_SIZE 128
+enum
+{
+    EVOCMB_IO_OFF = 0,
+    EVOCMB_IO_ON  = 1,
+};
 
 typedef struct 
 {    
     MB_TYPE_T   mb_type;
-    UINT32_T    max_data_size;
-    UINT8_T     slaver_addr;
     MBTCP_CTL_T tcp_ctrl;
     MBRTU_CTL_T rtu_ctrl;
 } EVOCMB_CTL_T;
