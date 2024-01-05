@@ -38,7 +38,9 @@
 
 ##
 #
-# MENU
+# MENU : the menu interface will be displayed after the ModBus connection is successful
+#
+# please enter according to the prompt information
 #
 ##
 #
