@@ -1,5 +1,7 @@
 ## compile parameters
 #
+* make clean;make
+#
 # V=99 : show compilation details,default to V=0
 * make V=99
 #
@@ -34,4 +36,27 @@
 #
 ## 
 
-
+##
+#
+# MENU
+#
+##
+#
+#   ***********************************************************
+#   *  [ WORK MODE : UNSTAY ]                                 *
+#   ***********************************************************
+#   *                          MENU                           *
+#   ***********************************************************
+#   *  [     1]. Function code : 0x01 Read output IO coils    *
+#   *  [     2]. FunCtion code : 0x02 Read output IO coils    *
+#   *  [     3]. FunCtion code : 0x03 Read hold register      *
+#   *  [     4]. FunCtion code : 0x04 Read input register     *
+#   *  [     5]. FunCtion code : 0x05 Write a coil            *
+#   *  [     6]. FunCtion code : 0x06 Write a register        *
+#   *  [    15]. FunCtion code : 0x0F Write multiple coils    *
+#   *  [    16]. FunCtion code : 0x10 Write multiple register *
+#   *  [  stay]. Stay connect                                 *
+#   *  [unstay]. Unstay connect                               *
+#   *  [  exit]. Exit                                         *
+#   ***********************************************************
+##

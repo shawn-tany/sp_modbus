@@ -11,7 +11,7 @@ CFLAGS 	+= -I $(RELEASE_DIR)/include
 CFLAGS 	+= -Wall -Werror
 CFLAGS 	+= -lpthread 
 
-ALL :
+ALL : clean
 	@echo "EVOC ModBus compiling"
 	@make --no-print-directory -f source/Makefile MBAPIDIR=source
 	@mkdir -p $(RELEASE_DIR)
