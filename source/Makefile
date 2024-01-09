@@ -36,9 +36,10 @@ ALL : clean
 	$(HIDE) make --no-print-directory -f src/Makefile MBAPIDIR=src
 	$(HIDE) cp src/lib . -rf
 	$(HIDE) cp src/include . -rf
+	$(HIDE) cp rule/*.h ./include -rf
 	@## build app
 	$(HIDE) mkdir -p $(BIN_DIR)
-	$(HIDE) $(CC) $(CFLAGS) main.c $(SRCS) $(LIB_LINK) -o $(APP)
+	$(HIDE) $(CC) $(CFLAGS) main.c rule/mask_rule.c $(SRCS) $(LIB_LINK) -o $(APP)
 	@echo "EVOC ModBus compile SUCCESS"
 	$(HIDE) $(NOTE)
 

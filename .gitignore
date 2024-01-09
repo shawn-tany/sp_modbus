@@ -8,3 +8,4 @@ source/src/lib
 source/src/include
 source/src/*.o
 source/src/ModBus/*.o
+source/rule/mask_rule_demo

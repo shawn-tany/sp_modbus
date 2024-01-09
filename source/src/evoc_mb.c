@@ -8,13 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <pthread.h>
+
 
 #include "evoc_mb.h"
-
-#define LOCK(lock)  pthread_mutex_lock(lock)
-#define ULOCK(lock) pthread_mutex_unlock(lock)
 
 /*
  * Function : updata ModBus master information to ModBus context
@@ -118,50 +114,6 @@ static int evoc_mbctx_info_takeout(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
     return ret;
 }
 
-static void *stay_connected_routine(void *arg)
-{
-    PTR_CHECK_NULL(arg);
-
-    pthread_detach(pthread_self());
-
-    UINT8_T stay = 0;
-    EVOCMB_CTX_T *mb_ctx = (EVOCMB_CTX_T *)arg;
-
-    MB_INFO_T mb_info = {
-        .code  = MB_FUNC_01,
-        .reg   = 0x0000,
-        .n_reg = 16
-    };
-
-    while (1)
-    {
-        sleep(1);
-
-        evoc_mb_stay_get(mb_ctx, &stay);
-
-        if (!stay)
-        {
-            continue;
-        }
-
-        /* send a modbsu request */
-        if (0 > evoc_mb_send(mb_ctx, &mb_info))
-        {
-            MB_PRINT("THREAD ERROR : ModBus send request failed\n");
-            continue;
-        }
-
-        /* recv a modbus response */
-        if (0 > evoc_mb_recv(mb_ctx, &mb_info))
-        {
-            MB_PRINT("THREAD ERROR : ModBus recv response failed\n");
-            continue;
-        }
-    }
-
-    return NULL;
-}
-
 /*
  * Function  : Create a ModBus Context
  * mb_ctl    : some information for create modBus Context
@@ -213,27 +165,6 @@ EVOCMB_CTX_T *evoc_mb_init(EVOCMB_CTL_T *mb_ctl)
         return NULL;
     }
 
-    /* ModBus stay connected */
-    if (0 > pthread_create(&(mb_ctx->mb_resc.pid), NULL, stay_connected_routine, mb_ctx))
-    {
-        perror("thread create error");
-
-        if (MB_TYPE_TCP == mb_ctl->mb_type)
-        {
-            mb_tcp_close(mb_ctx->ctx.mb_tcp_ctx);
-        }
-        else
-        {
-            mb_rtu_close(mb_ctx->ctx.mb_rtu_ctx);
-        }
-
-        free(mb_ctx);
-        return NULL;
-    }
-
-    /* Create mutex lock */
-    pthread_mutex_init(&(mb_ctx->mb_resc.lock), NULL);
-
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
     return mb_ctx;
@@ -247,8 +178,6 @@ EVOCMB_CTX_T *evoc_mb_init(EVOCMB_CTL_T *mb_ctl)
 void evoc_mb_close(EVOCMB_CTX_T *mb_ctx)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
-
-    LOCK(&(mb_ctx->mb_resc.lock));
 
     PTR_CHECK_VOID(mb_ctx);
 
@@ -264,8 +193,6 @@ void evoc_mb_close(EVOCMB_CTX_T *mb_ctx)
 
     free(mb_ctx);
 
-    ULOCK(&(mb_ctx->mb_resc.lock));
-
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }
 
@@ -277,8 +204,6 @@ void evoc_mb_close(EVOCMB_CTX_T *mb_ctx)
 int evoc_mb_recv(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
-
-    LOCK(&(mb_ctx->mb_resc.lock));
 
     PTR_CHECK_N1(mb_ctx);
     PTR_CHECK_N1(mb_info);
@@ -300,8 +225,6 @@ int evoc_mb_recv(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
         return -1;
     }
 
-    ULOCK(&(mb_ctx->mb_resc.lock));
-
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
     return length;
@@ -320,8 +243,6 @@ int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 
     int length = 0;
 
-    LOCK(&(mb_ctx->mb_resc.lock));
-
     if (0 > evoc_mbctx_info_updata(mb_ctx, mb_info))
     {
         return -1;
@@ -337,41 +258,9 @@ int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
         length = mb_rtu_send(mb_ctx->ctx.mb_rtu_ctx);
     }
 
-    ULOCK(&(mb_ctx->mb_resc.lock));
-
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
     return length;
-}
-
-void evoc_mb_stay_set(EVOCMB_CTX_T *mb_ctx, UINT8_T stay)
-{
-    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
-
-    PTR_CHECK_VOID(mb_ctx);
-
-    LOCK(&(mb_ctx->mb_resc.lock));
-
-    mb_ctx->mb_resc.stay = stay;
-
-    ULOCK(&(mb_ctx->mb_resc.lock));
-
-    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
-}
-
-void evoc_mb_stay_get(EVOCMB_CTX_T *mb_ctx, UINT8_T *stay)
-{
-    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
-
-    PTR_CHECK_VOID(mb_ctx);
-
-    LOCK(&(mb_ctx->mb_resc.lock));
-
-    *stay = mb_ctx->mb_resc.stay;
-
-    ULOCK(&(mb_ctx->mb_resc.lock));
-
-    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }
 
 /*

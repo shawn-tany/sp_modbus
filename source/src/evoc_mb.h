@@ -79,10 +79,6 @@ int evoc_mb_recv(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info);
  */
 int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info);
 
-void evoc_mb_stay_set(EVOCMB_CTX_T *mb_ctx, UINT8_T stay);
-
-void evoc_mb_stay_get(EVOCMB_CTX_T *mb_ctx, UINT8_T *stay);
-
 /*
  * Function  : show response status from ModBus slaver
  * mb_info   : ModBus master info

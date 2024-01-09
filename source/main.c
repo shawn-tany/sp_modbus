@@ -9,29 +9,25 @@
 #include <getopt.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
 
 #include "evoc_mb.h"
+#include "mask_rule.h"
+
+#define LOCK(lock)  pthread_mutex_lock(lock)
+#define ULOCK(lock) pthread_mutex_unlock(lock)
 
 enum
 {
     EVOCMB_QUIT = 0x100,
     EVOCMB_STAY,
-    EVOCMB_UNSTAY,
+    EVOCMB_RELY,
 };
 
-static struct 
-{
-    char    *cmd;
-    UINT16_T code;
-} cmd_code_map[] = {
-    { "exit",   EVOCMB_QUIT },
-    { "stay",   EVOCMB_STAY },
-    { "unstay", EVOCMB_UNSTAY }
-};
+static EVOCMB_CTX_T *mb_ctx = NULL; 
 
-static UINT8_T running = 1;
-
-EVOCMB_CTL_T default_ctl = {
+static EVOCMB_CTL_T default_ctl = {
     .mb_type = MB_TYPE_RTU,
 
     .tcp_ctrl = {
@@ -52,6 +48,34 @@ EVOCMB_CTL_T default_ctl = {
         .max_data_size = 1400,
         .slaver_addr   = 1,
     }
+};
+
+static struct 
+{
+    char    *cmd;
+    UINT16_T code;
+} cmd_code_map[] = {
+    { "exit", EVOCMB_QUIT },
+    { "stay", EVOCMB_STAY },
+    { "rely", EVOCMB_RELY }
+};
+
+enum 
+{
+    STAY_THREAD = 0,
+    RELY_THREAD = 1,
+    THREAD_NUM  = 2
+};
+
+static struct 
+{
+    pthread_mutex_t lock;
+    pthread_t       pid[THREAD_NUM];
+    UINT8_T         stay;
+    UINT8_T         rely;
+    UINT8_T         running;
+} resource = {
+    .running = 1
 };
 
 enum
@@ -202,63 +226,12 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
     return 0;
 }
 
-/*
- * Function     : Select a ModBus function, and fill in relevant data
- * mb_info      : the data information to be ModBus sent to the ModBus slaver from master
- * return       : (ModBus function code)=SUCCESS -1=ERROR
- */
-static int commad_select(MB_INFO_T *mb_info)
+static int command_funccode_handle(UINT8_T code, MB_INFO_T *mb_info)
 {
     PTR_CHECK_N1(mb_info);
 
-    int i = 0;
-    UINT16_T  code = 0;
+    int i   = 0;
     char commad[32] = {0};
-
-    memset(mb_info, 0, sizeof(MB_INFO_T));
-
-    printf( "   ***********************************************************\n"
-            "   *                          MENU                           *\n"
-            "   ***********************************************************\n"
-            "   *  [     1]. Function code : 0x01 Read output IO coils    *\n"
-            "   *  [     2]. FunCtion code : 0x02 Read output IO coils    *\n"
-            "   *  [     3]. FunCtion code : 0x03 Read hold register      *\n"
-            "   *  [     4]. FunCtion code : 0x04 Read input register     *\n"
-            "   *  [     5]. FunCtion code : 0x05 Write a coil            *\n"
-            "   *  [     6]. FunCtion code : 0x06 Write a register        *\n"
-            "   *  [    15]. FunCtion code : 0x0F Write multiple coils    *\n"
-            "   *  [    16]. FunCtion code : 0x10 Write multiple register *\n"
-            "   *  [  stay]. Stay connect                                 *\n"
-            "   *  [unstay]. Unstay connect                               *\n"
-            "   *  [  exit]. Exit                                         *\n"
-            "   ***********************************************************\n\n");
-    
-    printf("Please input code:\n");
-    do 
-    {
-        fgets(commad, sizeof(commad), stdin);
-
-        commad[strlen(commad) - 1] = 0;
-        
-        if (strlen(commad))
-        {
-            break;
-        }
-    } while (1);
-    
-    for (i = 0; i < ITEM(cmd_code_map); ++i)
-    {
-        if (!strncasecmp(commad, cmd_code_map[i].cmd, strlen(cmd_code_map[i].cmd)))
-        {
-            code = cmd_code_map[i].code;
-            break;
-        }
-    }
-
-    if (!code)
-    {
-        code = strtol(commad, NULL, 0);
-    }
 
     switch (code)
     {
@@ -319,40 +292,113 @@ static int commad_select(MB_INFO_T *mb_info)
                 *((UINT16_T *)(&mb_info->value[i * 2])) = strtol(commad, NULL, 0);
             }
             break;
-            
+    }
+
+    return (mb_info->code = code);
+}
+
+static void work_mode_show(void)
+{
+    printf("\n"
+            "   *********************************************************\n"
+            "   * [ stay: %-3s ]                                         *\n"
+            "   * [ rely: %-3s ]                                         *\n",
+            resource.stay ? "on" : "off", 
+            resource.rely ? "on" : "off");
+}
+
+/*
+ * Function     : Select a ModBus function, and fill in relevant data
+ * mb_info      : the data information to be ModBus sent to the ModBus slaver from master
+ * return       : (ModBus function code)=SUCCESS -1=ERROR
+ */
+static int commad_select(MB_INFO_T *mb_info)
+{
+    PTR_CHECK_N1(mb_info);
+
+    int i = 0;
+    UINT16_T  code = 0;
+    char commad[32] = {0};
+
+    memset(mb_info, 0, sizeof(MB_INFO_T));
+
+    work_mode_show();
+
+    printf( "   *********************************************************\n"
+            "   *                          MENU                         *\n"
+            "   *********************************************************\n"
+            "   *  [   1]. Function code : 0x01 Read output IO coils    *\n"
+            "   *  [   2]. FunCtion code : 0x02 Read output IO coils    *\n"
+            "   *  [   3]. FunCtion code : 0x03 Read hold register      *\n"
+            "   *  [   4]. FunCtion code : 0x04 Read input register     *\n"
+            "   *  [   5]. FunCtion code : 0x05 Write a coil            *\n"
+            "   *  [   6]. FunCtion code : 0x06 Write a register        *\n"
+            "   *  [  15]. FunCtion code : 0x0F Write multiple coils    *\n"
+            "   *  [  16]. FunCtion code : 0x10 Write multiple register *\n"
+            "   *  [stay]. Stay connect                                 *\n"
+            "   *  [rely]. IO rely control                              *\n"
+            "   *  [exit]. Exit                                         *\n"
+            "   *********************************************************\n\n");
+    
+    printf("Please input code:\n");
+    do 
+    {
+        fgets(commad, sizeof(commad), stdin);
+
+        commad[strlen(commad) - 1] = 0;
+        
+        if (strlen(commad))
+        {
+            break;
+        }
+    } while (1);
+    
+    /* format command */
+    for (i = 0; i < ITEM(cmd_code_map); ++i)
+    {
+        if (!strncasecmp(commad, cmd_code_map[i].cmd, strlen(cmd_code_map[i].cmd)))
+        {
+            code = cmd_code_map[i].code;
+            break;
+        }
+    }
+
+    /* invalid command */
+    if (!code)
+    {
+        code = strtol(commad, NULL, 0);
+    }
+
+    /* ModBus function command */
+    if (MB_FUNC_01 <= code && MB_FUNC_10 >= code)
+    {
+        return command_funccode_handle(code, mb_info);
+    }
+
+    switch (code)
+    {
         case EVOCMB_STAY :
-        case EVOCMB_UNSTAY :
+            printf("Please input stay status [on|off]\n");
+            fgets(commad, sizeof(commad), stdin);
+            resource.stay = strncasecmp(commad, "on", 2) ? 0 : 1;
+            break;
+
+        case EVOCMB_RELY :
+            printf("Please input rely status [on|off]\n");
+            fgets(commad, sizeof(commad), stdin);
+            resource.rely = strncasecmp(commad, "on", 2) ? 0 : 1;
+            break;
+
         case EVOCMB_QUIT :
-            return code;
+            resource.running = 0;
+            break;
             
         default :
             printf("Invalid command(%s) code(%d)\n", commad, (int)mb_info->code);
             return -1;
     }
 
-    return (mb_info->code = code);
-}
-
-static void work_mode_show(EVOCMB_CTX_T *mb_ctx)
-{
-    PTR_CHECK_VOID(mb_ctx);
-
-    UINT8_T stay = 0;
-
-    evoc_mb_stay_get(mb_ctx, &stay);
-
-    printf("\n"
-            "   ***********************************************************\n"
-            "   * [ work mode : %-6s ]                                  *\n", stay ? "stay" : "unstay");
-}
-
-static void response_show(MB_INFO_T mb_info)
-{
-    /* Show response status */
-    evoc_mb_status_show(mb_info);
-
-    /* Show response data */
-    evoc_mb_data_show(mb_info);
+    return 0;
 }
 
 /*
@@ -367,52 +413,233 @@ static int work(EVOCMB_CTX_T *mb_ctx)
     int       ret  = 0;
     MB_INFO_T mb_info;
 
-    while (running)
+    while (resource.running)
     {
-        work_mode_show(mb_ctx);
-
         /* select a commad */
-        if (0 > (ret = commad_select(&mb_info)))
+        if (0 >= (ret = commad_select(&mb_info)))
         {
-            printf("ERROR : commad set failed\n");
-            continue;
-        }
-        
-        if (EVOCMB_QUIT == ret)
-        {
-            break;
-        }
-
-        if (EVOCMB_STAY == ret || EVOCMB_UNSTAY == ret)
-        {
-            evoc_mb_stay_set(mb_ctx, (EVOCMB_STAY == ret));
+            if (ret)
+            {
+                printf("ERROR : commad set failed\n");
+            }
             continue;
         }
 
-        /* send a modbsu request */
-        if (0 > evoc_mb_send(mb_ctx, &mb_info))
-        {
-            printf("ERROR : ModBus send request failed\n");
-            continue;
-        }
+        LOCK(&resource.lock);
 
-        /* recv a modbus response */
-        if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+        do 
         {
-            printf("ERROR : ModBus recv response failed\n");
-            continue;
-        }
+            /* send a modbsu request */
+            if (0 > evoc_mb_send(mb_ctx, &mb_info))
+            {
+                printf("ERROR : ModBus send request failed\n");
+                break;
+            }
 
-        /* Show response */
-        response_show(mb_info);
+            /* recv a modbus response */
+            if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+            {
+                printf("ERROR : ModBus recv response failed\n");
+                break;
+            }
+
+            /* Show response status */
+            evoc_mb_status_show(mb_info);
+
+            /* Show response data */
+            evoc_mb_data_show(mb_info);
+        } while (0);
+
+        ULOCK(&resource.lock);
     }
 
     return 0;
 }
 
-int main(int argc, char *argv[ ])
+static void *stay_connected_routine(void *arg)
 {
-    EVOCMB_CTX_T *mb_ctx = NULL;    
+    MB_INFO_T mb_info = {
+        .code  = MB_FUNC_01,
+        .reg   = 0x0000,
+        .n_reg = 16
+    };
+
+    while (resource.running)
+    {
+        sleep(1);
+
+        LOCK(&resource.lock);
+
+        do 
+        {
+            if (!(resource.stay) || (resource.rely))
+            {
+                break;
+            }
+
+            /* send a modbsu request */
+            if (0 > evoc_mb_send(mb_ctx, &mb_info))
+            {
+                MB_PRINT("THREAD ERROR : ModBus send request failed\n");
+                break;
+            }
+
+            /* recv a modbus response */
+            if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+            {
+                MB_PRINT("THREAD ERROR : ModBus recv response failed\n");
+                break;
+            }
+        } while (0);
+
+        ULOCK(&resource.lock);
+    }
+
+    return NULL;
+}
+
+#define MAX_MASK_RULE_NUM 128
+
+static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
+{
+    printf("id(%d) iMask(0x%llx) oMask(0x%llx) ioStat(%s)\n", content->rule_id, 
+        content->i_mask, content->o_mask, content->io_stat ? "up" : "down");
+
+    int i = 0;
+
+    MB_INFO_T mb_info = {
+        .code  = MB_FUNC_02,
+        .reg   = 16,
+        .n_reg = 16
+    };
+
+    for (i = 0; i < mb_info.n_reg; ++i)
+    {
+        mb_info.value[i] = content->o_mask & (1 << i);
+    }
+
+    /* send a modbsu request */
+    if (0 > evoc_mb_send(mb_ctx, &mb_info))
+    {
+        MB_PRINT("IO RELY ERROR : ModBus send request failed\n");
+        return -1;
+    }
+
+    /* recv a modbus response */
+    if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+    {
+        MB_PRINT("IO RELY ERROR : ModBus recv response failed\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+static void *io_rely_routine(void *arg)
+{
+    PTR_CHECK_NULL(arg);
+
+    EVOCMB_CTX_T *mb_ctx = (EVOCMB_CTX_T *)arg;
+
+    MASK_RULE_T *ruleset = mask_rule_init(MAX_MASK_RULE_NUM);
+    if (!ruleset)
+    {
+        printf("Can not create mask rule set\n");
+        return NULL;
+    }
+
+    int i = 0;
+    UINT64_T imask = 0;
+
+    MB_INFO_T mb_info = {
+        .code  = MB_FUNC_02,
+        .reg   = 0x0000,
+        .n_reg = 16
+    };
+
+    while (resource.running)
+    {
+        sleep(1);
+
+        LOCK(&resource.lock);
+
+        do 
+        {
+            if (!(resource.rely))
+            {
+                break;
+            }
+
+            /* send a modbsu request */
+            if (0 > evoc_mb_send(mb_ctx, &mb_info))
+            {
+                MB_PRINT("RELY THREAD ERROR : ModBus send request failed\n");
+                break;
+            }
+
+            /* recv a modbus response */
+            if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+            {
+                MB_PRINT("RELY THREAD ERROR : ModBus recv response failed\n");
+                break;
+            }
+
+            imask = 0;
+
+            for (i = 0; i < mb_info.n_byte; ++i)
+            {
+                imask = mb_info.value[i] << (i * 8);
+            }
+
+            mask_rule_macth(ruleset, imask, io_rely_handle, NULL);
+        } while (0);
+
+        ULOCK(&resource.lock);
+    }
+
+    mask_rule_exit(ruleset);
+
+    return NULL;
+}
+
+static int resc_init(EVOCMB_CTX_T *mb_ctx)
+{
+    /* Create mutex lock */
+    pthread_mutex_init(&(resource.lock), NULL);
+
+    /* ModBus stay connected */
+    if (0 > pthread_create(&(resource.pid[STAY_THREAD]), NULL, stay_connected_routine, mb_ctx))
+    {
+        perror("stay thread create error");
+        return -1;
+    }
+
+    /* ModBus stay connected */
+    if (0 > pthread_create(&(resource.pid[STAY_THREAD]), NULL, io_rely_routine, mb_ctx))
+    {
+        perror("rely thread create error");
+        return -1;
+    }
+
+    return 0;
+}
+
+static void resc_uinit(void)
+{
+    int i = 0;
+
+    /* wait thread finish */
+    for (i = 0; i < THREAD_NUM; ++i)
+    {
+        pthread_join(resource.pid[i], NULL);
+    }
+
+    /* Create mutex lock */
+    pthread_mutex_destroy(&(resource.lock));
+}
+
+int main(int argc, char *argv[ ])
+{   
     EVOCMB_CTL_T ctl = default_ctl;
 
     arg_parse(argc, argv, &ctl);
@@ -424,8 +651,16 @@ int main(int argc, char *argv[ ])
         return -1;
     }
 
+    if (0 > resc_init(mb_ctx))
+    {
+        printf("Can not init evoc modbus resource\n");
+        return -1;
+    }
+
     /* evoc modbus work */
     work(mb_ctx);
+
+    resc_uinit();
 
     evoc_mb_close(mb_ctx);
     

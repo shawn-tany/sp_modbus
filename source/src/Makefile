@@ -21,7 +21,6 @@ OBJS := $(patsubst %.c,%.o,$(SRCS))
 CFLAGS 	:= -g
 CFLAGS 	+= -I .
 CFLAGS 	+= -I $(MBAPIDIR)/ModBus
-CFLAGS 	+= -lpthread
 CFLAGS 	+= -Wall -Werror
 
 LIB_DIR := $(MBAPIDIR)/lib
