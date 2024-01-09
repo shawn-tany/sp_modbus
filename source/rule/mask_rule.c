@@ -70,9 +70,16 @@ int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
     }
 
     int priority = rulenode.content.priority;
+    int ruletype = rulenode.content.type;
 
     /* check priority */
     if (MASK_RULE_PRIORITY_NUM <= priority)
+    {
+        return -1;
+    }
+
+    /* check type */
+    if (RULE_TYPE_FLEX != ruletype && RULE_TYPE_FUZZ != ruletype)
     {
         return -1;
     }
@@ -143,12 +150,13 @@ int mask_rule_del(MASK_RULE_T *ruleset, UINT8_T rule_id)
     }
 
     /* reset rule node */
-    rulenode->valid            = 0;
-    rulenode->content.i_mask   = 0;
-    rulenode->content.io_stat  = 0;
-    rulenode->content.o_mask   = 0;
-    rulenode->content.priority = 0;
-    rulenode->content.rule_id  = 0;
+    rulenode->valid              = 0;
+    rulenode->content.imask.up   = 0;
+    rulenode->content.imask.down = 0;
+    rulenode->content.omask.up   = 0;
+    rulenode->content.omask.down = 0;
+    rulenode->content.priority   = 0;
+    rulenode->content.rule_id    = 0;
 
     /* delete rule node from priority list */
     list_del(&rulenode->priority_head);
@@ -201,6 +209,8 @@ MASK_RULE_NODE_T *mask_rule_get(MASK_RULE_T *ruleset, UINT8_T rule_id)
 int mask_rule_macth(MASK_RULE_T *ruleset, UINT64_T mask_rule, match_callback func, void *arg)
 {
     int i = 0;
+    UINT64_T upmask = 0;
+    UINT64_T downmask = 0;
     MASK_RULE_NODE_T *tmp;
     MASK_RULE_NODE_T *pos;
 
@@ -224,15 +234,60 @@ int mask_rule_macth(MASK_RULE_T *ruleset, UINT64_T mask_rule, match_callback fun
                 return -1;
             }
 
-            if (mask_rule == pos->content.i_mask)
+            if (pos->content.type == RULE_TYPE_FLEX)
             {
-                if (0 > func(&pos->content, arg))
-                {
-                    return -1;
-                }
+                upmask   = (mask_rule);
+                downmask = ((~mask_rule));
+            }
+            else if (pos->content.type == RULE_TYPE_FUZZ)
+            {
+                upmask   = (mask_rule & pos->content.imask.up);
+                downmask = ((~mask_rule) & pos->content.imask.down);
+            }
+
+            if (pos->content.imask.up && upmask != pos->content.imask.up)
+            {
+                continue;
+            }
+
+            if (pos->content.imask.down && (downmask != pos->content.imask.down))
+            {
+                continue;
+            }
+            
+            if (0 > func(&pos->content, arg))
+            {
+                return -1;
             }
         }
     }
 
     return 0;
+}
+
+void mask_rule_display(const MASK_RULE_CONTENT_T *content)
+{
+    printf("id(%d)", content->rule_id);
+
+    if (content->imask.up)
+    {
+        printf(" imask.up(0x%llx)", content->imask.up);
+    }
+
+    if (content->imask.down)
+    {
+        printf(" imask.down(0x%llx)", content->imask.down);
+    }
+    
+    if (content->omask.up)
+    {
+        printf(" omask.up(0x%llx)", content->omask.up);
+    }
+
+    if (content->omask.down)
+    {
+        printf(" omask.down(0x%llx)", content->omask.down);
+    }
+
+    printf(" priority(%d)\n", content->priority);
 }

@@ -13,12 +13,24 @@ typedef unsigned long long  UINT64_T;
 
 typedef struct 
 {
-    UINT16_T rule_id;
-    UINT8_T  priority;
-    UINT8_T  io_stat;
-    UINT64_T i_mask;
-    UINT64_T o_mask;
-} MASK_RULE_CONTENT_T;;
+    UINT64_T up;
+    UINT64_T down;
+} IO_STAT_T;
+
+typedef enum 
+{
+    RULE_TYPE_FLEX = 0,
+    RULE_TYPE_FUZZ = 1,
+} RULE_TYPE_T;
+
+typedef struct 
+{
+    UINT16_T    rule_id;
+    UINT8_T     priority;
+    RULE_TYPE_T type;
+    IO_STAT_T   imask;
+    IO_STAT_T   omask;
+} MASK_RULE_CONTENT_T;
 
 typedef struct 
 {
@@ -59,5 +71,7 @@ int mask_rule_del(MASK_RULE_T *ruleset, UINT8_T rule_id);
 MASK_RULE_NODE_T *mask_rule_get(MASK_RULE_T *ruleset, UINT8_T rule_id);
 
 int mask_rule_macth(MASK_RULE_T *ruleset, UINT64_T mask_rule, match_callback func, void *arg);
+
+void mask_rule_display(const MASK_RULE_CONTENT_T *content);
 
 #endif

@@ -5,13 +5,14 @@
 
 int io_handle(MASK_RULE_CONTENT_T *content, void *arg)
 {
-    printf("id(%d) iMask(0x%llx) oMask(0x%llx) ioStat(%s)\n", content->rule_id, 
-        content->i_mask, content->o_mask, content->io_stat ? "up" : "down");
+    mask_rule_display(content);
+
+    return 0;
 }
 
 int main()
 {
-    int i = 0;
+    UINT64_T i = 0;
     MASK_RULE_T      *ruleset = NULL;
     MASK_RULE_NODE_T  addnode;
     MASK_RULE_NODE_T *getnode = NULL;
@@ -28,16 +29,32 @@ int main()
         memset(&addnode, 0, sizeof(addnode));
 
         addnode.content.priority = i % 8;
-        addnode.content.i_mask   = i;
-        addnode.content.o_mask   = i;
-        addnode.content.io_stat  = i % 2;
+        addnode.content.type     = RULE_TYPE_FLEX;
+
+        if (i % 2)
+        {
+            addnode.content.imask.up   = i + 1;
+            addnode.content.omask.up   = i + 1;
+        }
+        else
+        {
+            addnode.content.imask.down = i + 1;
+            addnode.content.omask.down = i + 1;
+        }
 
         mask_rule_add(ruleset, addnode);
     }
 
     for (i = 0; i < 100; ++i)
     {
-        mask_rule_macth(ruleset, i, io_handle, NULL);
+        if (i % 2)
+        {
+            mask_rule_macth(ruleset, i + 1, io_handle, NULL);
+        }
+        else
+        {
+            mask_rule_macth(ruleset, ~(i + 1), io_handle, NULL);
+        }
     }
 
     printf("----------------------------------------------\n");
@@ -49,7 +66,21 @@ int main()
 
     for (i = 0; i < 100; ++i)
     {
-        mask_rule_macth(ruleset, i, io_handle, NULL);
+        if (i % 2)
+        {
+            mask_rule_macth(ruleset, i + 1, io_handle, NULL);
+        }
+        else
+        {
+            mask_rule_macth(ruleset, ~(i + 1), io_handle, NULL);
+        }
+#if 0
+        getnode = mask_rule_get(ruleset, i + 1);
+        if (getnode)
+        {
+            io_handle(&getnode->content, NULL);
+        }
+#endif
     }
 
     mask_rule_exit(ruleset);

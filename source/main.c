@@ -18,14 +18,18 @@
 #define LOCK(lock)  pthread_mutex_lock(lock)
 #define ULOCK(lock) pthread_mutex_unlock(lock)
 
+#define MAX_MASK_RULE_NUM 128
+
 enum
 {
     EVOCMB_QUIT = 0x100,
     EVOCMB_STAY,
     EVOCMB_RELY,
+    EVOCMB_RULE,
 };
 
-static EVOCMB_CTX_T *mb_ctx = NULL; 
+static EVOCMB_CTX_T *mb_ctx  = NULL; 
+static MASK_RULE_T  *ruleset = NULL;
 
 static EVOCMB_CTL_T default_ctl = {
     .mb_type = MB_TYPE_RTU,
@@ -57,7 +61,8 @@ static struct
 } cmd_code_map[] = {
     { "exit", EVOCMB_QUIT },
     { "stay", EVOCMB_STAY },
-    { "rely", EVOCMB_RELY }
+    { "rely", EVOCMB_RELY },
+    { "rule", EVOCMB_RULE }
 };
 
 enum 
@@ -112,7 +117,7 @@ static struct option long_options[] = {
 };
 
 /*
- * Function  : show ModBus demo option of commad line
+ * Function  : show ModBus demo option of command line
  * Parameter : void
  * return    : void
  */
@@ -135,9 +140,9 @@ static void help(void)
 }
 
 /*
- * Function  : parse ModBus demo option of commad line
- * argc      : parameter number of commad line
- * argv      : parameter list of commad line
+ * Function  : parse ModBus demo option of command line
+ * argc      : parameter number of command line
+ * argv      : parameter list of command line
  * return    : 0=SUCCESS -1=ERROR
  */
 static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
@@ -226,77 +231,6 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
     return 0;
 }
 
-static int command_funccode_handle(UINT8_T code, MB_INFO_T *mb_info)
-{
-    PTR_CHECK_N1(mb_info);
-
-    int i   = 0;
-    char commad[32] = {0};
-
-    switch (code)
-    {
-        case MB_FUNC_01 : 
-        case MB_FUNC_02 : 
-        case MB_FUNC_03 :
-        case MB_FUNC_04 :
-            printf("Please input hexadecimal register address\n");
-            fgets(commad, sizeof(commad), stdin);
-            mb_info->reg = strtol(commad, NULL, 0);
-
-            printf("Please input register number\n");
-            fgets(commad, sizeof(commad), stdin);
-            mb_info->n_reg = strtol(commad, NULL, 0);
-            break;
-            
-        case MB_FUNC_05 :
-        case MB_FUNC_06 : 
-            printf("Please input hexadecimal register address\n");
-            fgets(commad, sizeof(commad), stdin);
-            mb_info->reg = strtol(commad, NULL, 0);
-
-            printf("Please input hexadecimal register value\n");
-            fgets(commad, sizeof(commad), stdin);
-            *((UINT16_T *)(&mb_info->value[0])) = strtol(commad, NULL, 0);
-            break;
-            
-        case MB_FUNC_0f : 
-            printf("Please input hexadecimal register address\n");
-            fgets(commad, sizeof(commad), stdin);
-            mb_info->reg = strtol(commad, NULL, 0);
-
-            printf("Please input coils number\n");
-            fgets(commad, sizeof(commad), stdin);
-            mb_info->n_reg = strtol(commad, NULL, 0);
-
-            for (i = 0; i < mb_info->n_reg; ++i)
-            {
-                printf("Please input %dth coil value\n", i + 1);
-                fgets(commad, sizeof(commad), stdin);
-                mb_info->value[i] = strtol(commad, NULL, 0);
-            }
-            break;
-            
-        case MB_FUNC_10 : 
-            printf("Please input hexadecimal register address\n");
-            fgets(commad, sizeof(commad), stdin);
-            mb_info->reg = strtol(commad, NULL, 0);
-
-            printf("Please input register number\n");
-            fgets(commad, sizeof(commad), stdin);
-            mb_info->n_reg = strtol(commad, NULL, 0);
-
-            for (i = 0; i < mb_info->n_reg; ++i)
-            {
-                printf("Please input %dth hexadecimal register value\n", i + 1);
-                fgets(commad, sizeof(commad), stdin);
-                *((UINT16_T *)(&mb_info->value[i * 2])) = strtol(commad, NULL, 0);
-            }
-            break;
-    }
-
-    return (mb_info->code = code);
-}
-
 static void work_mode_show(void)
 {
     printf("\n"
@@ -307,18 +241,250 @@ static void work_mode_show(void)
             resource.rely ? "on" : "off");
 }
 
+static int command_funccode_handle(UINT8_T code, MB_INFO_T *mb_info)
+{
+    PTR_CHECK_N1(mb_info);
+
+    int i   = 0;
+    char command[32] = {0};
+
+    switch (code)
+    {
+        case MB_FUNC_01 : 
+        case MB_FUNC_02 : 
+        case MB_FUNC_03 :
+        case MB_FUNC_04 :
+            printf("Please input hexadecimal register address\n");
+            fgets(command, sizeof(command), stdin);
+            mb_info->reg = strtol(command, NULL, 0);
+
+            printf("Please input register number\n");
+            fgets(command, sizeof(command), stdin);
+            mb_info->n_reg = strtol(command, NULL, 0);
+            break;
+            
+        case MB_FUNC_05 :
+        case MB_FUNC_06 : 
+            printf("Please input hexadecimal register address\n");
+            fgets(command, sizeof(command), stdin);
+            mb_info->reg = strtol(command, NULL, 0);
+
+            printf("Please input hexadecimal register value\n");
+            fgets(command, sizeof(command), stdin);
+            *((UINT16_T *)(&mb_info->value[0])) = strtol(command, NULL, 0);
+            break;
+            
+        case MB_FUNC_0f : 
+            printf("Please input hexadecimal register address\n");
+            fgets(command, sizeof(command), stdin);
+            mb_info->reg = strtol(command, NULL, 0);
+
+            printf("Please input coils number\n");
+            fgets(command, sizeof(command), stdin);
+            mb_info->n_reg = strtol(command, NULL, 0);
+
+            for (i = 0; i < mb_info->n_reg; ++i)
+            {
+                printf("Please input %dth coil value\n", i + 1);
+                fgets(command, sizeof(command), stdin);
+                mb_info->value[i] = strtol(command, NULL, 0);
+            }
+            break;
+            
+        case MB_FUNC_10 : 
+            printf("Please input hexadecimal register address\n");
+            fgets(command, sizeof(command), stdin);
+            mb_info->reg = strtol(command, NULL, 0);
+
+            printf("Please input register number\n");
+            fgets(command, sizeof(command), stdin);
+            mb_info->n_reg = strtol(command, NULL, 0);
+
+            for (i = 0; i < mb_info->n_reg; ++i)
+            {
+                printf("Please input %dth hexadecimal register value\n", i + 1);
+                fgets(command, sizeof(command), stdin);
+                *((UINT16_T *)(&mb_info->value[i * 2])) = strtol(command, NULL, 0);
+            }
+            break;
+    }
+
+    return (mb_info->code = code);
+}
+
+enum 
+{
+    MBRULE_ADD = 0,
+    MBRULE_DEL = 1,
+    MBRULE_GET = 2
+};
+
+static int command_rule_handle(void)
+{
+    char *ptr = NULL;
+    char  command[128] = {0};
+    char  argv[128][128];
+    int   argc = 0;
+    int   id   = 0;
+    int   i    = 0;
+    int   idx  = 0;
+
+    MASK_RULE_NODE_T node;
+    const MASK_RULE_NODE_T *getnode = NULL;
+    memset(&node, 0, sizeof(node));
+
+    printf("Please input operation for rule \n"
+           "eg : get all\n"
+           "     get [id]\n"
+           "     add imask.up 0xff imask.dwon 0xff omask.up 0xff omask.down 0xff prio 7\n"
+           "     add imask.up 0xff omask.up 0xff prio 7\n"
+           "     add imask.up 0xff omask.down 0xff\n"
+           "     del all\n"
+           "     del [id]\n");
+
+    do 
+    {
+        fgets(command, sizeof(command), stdin);
+
+        command[strlen(command) - 1] = 0;
+        
+        if (strlen(command))
+        {
+            break;
+        }
+    } while (1);
+
+    ptr = strtok(command, " ");
+
+    while (ptr)
+    {
+        snprintf(argv[argc++], sizeof(argv[argc++]), "%s", ptr);
+        ptr = strtok(NULL, " ");
+    }
+
+    if (!strcmp(argv[idx], "del"))
+    {
+        idx++;
+        if (!strcasecmp(argv[idx], "all"))
+        {
+            /* delete all */
+            for (i = 0; i < MAX_MASK_RULE_NUM; ++i)
+            {
+                mask_rule_del(ruleset, i + 1);
+            }
+        }
+        else
+        {
+            id = strtol(argv[idx], NULL, 0);
+
+            /* delete */
+            mask_rule_del(ruleset, id);
+        }
+    }
+    else if (!strcmp(argv[idx], "get"))
+    {
+        idx++;
+        if (!strcasecmp(argv[idx], "all"))
+        {
+            /* get all */
+            for (i = 0; i < MAX_MASK_RULE_NUM; ++i)
+            {
+                getnode = mask_rule_get(ruleset, i + 1);
+                if (getnode)
+                {
+                    mask_rule_display(&getnode->content);
+                }
+            }
+        }
+        else
+        {
+            id = strtol(argv[idx], NULL, 0);
+            /* get */
+            getnode = mask_rule_get(ruleset, id);
+            if (getnode)
+            {
+                mask_rule_display(&getnode->content);
+            }
+            else
+            {
+                printf("ERROR : No such rule\n");
+                return 0;
+            }
+        }
+    }
+    else if (!strcmp(argv[idx], "add"))
+    {
+        idx++;
+        if (!strcmp(argv[idx], "imask.up"))
+        {
+            idx++;
+            node.content.imask.up = strtol(argv[idx++], NULL, 0);
+        }
+
+        if (!strcmp(argv[idx], "imask.down"))
+        {
+            idx++;
+            node.content.imask.down = strtol(argv[idx++], NULL, 0);
+        }
+        
+        if (!strcmp(argv[idx], "omask.up"))
+        {
+            idx++;
+            node.content.omask.up = strtol(argv[idx++], NULL, 0);
+        }
+
+        if (!strcmp(argv[idx], "omask.down"))
+        {
+            idx++;
+            node.content.omask.down = strtol(argv[idx++], NULL, 0);
+        }
+
+        if (!strcmp(argv[idx], "prio"))
+        {
+            idx++;
+            node.content.priority = strtol(argv[idx++], NULL, 0);
+        }
+
+        /* check */
+        if (!node.content.imask.up && !node.content.imask.down)
+        {
+            printf("ERROR : Invalid rule imask up(0x%llx) down(0x%llx)!\n", 
+                node.content.imask.up, node.content.imask.down);
+            return -1;
+        }
+
+        if (!node.content.omask.up && !node.content.omask.down)
+        {
+            printf("ERROR : Invalid rule omask up(0x%llx) down(0x%llx)!\n", 
+                node.content.omask.up, node.content.omask.down);
+            return -1;
+        }
+
+        if (MASK_RULE_PRIORITY_NUM <= node.content.priority)
+        {
+            printf("ERROR : Invalid rule priority %d!\n", node.content.priority);
+            return -1;
+        }
+
+        /* add rule */
+        mask_rule_add(ruleset, node);
+    }
+
+    return 0;
+}
+
 /*
  * Function     : Select a ModBus function, and fill in relevant data
  * mb_info      : the data information to be ModBus sent to the ModBus slaver from master
  * return       : (ModBus function code)=SUCCESS -1=ERROR
  */
-static int commad_select(MB_INFO_T *mb_info)
+static int command_select(MB_INFO_T *mb_info)
 {
     PTR_CHECK_N1(mb_info);
 
     int i = 0;
     UINT16_T  code = 0;
-    char commad[32] = {0};
+    char command[32] = {0};
 
     memset(mb_info, 0, sizeof(MB_INFO_T));
 
@@ -337,17 +503,18 @@ static int commad_select(MB_INFO_T *mb_info)
             "   *  [  16]. FunCtion code : 0x10 Write multiple register *\n"
             "   *  [stay]. Stay connect                                 *\n"
             "   *  [rely]. IO rely control                              *\n"
+            "   *  [rule]. IO rely rule                                 *\n"
             "   *  [exit]. Exit                                         *\n"
             "   *********************************************************\n\n");
     
     printf("Please input code:\n");
     do 
     {
-        fgets(commad, sizeof(commad), stdin);
+        fgets(command, sizeof(command), stdin);
 
-        commad[strlen(commad) - 1] = 0;
+        command[strlen(command) - 1] = 0;
         
-        if (strlen(commad))
+        if (strlen(command))
         {
             break;
         }
@@ -356,7 +523,7 @@ static int commad_select(MB_INFO_T *mb_info)
     /* format command */
     for (i = 0; i < ITEM(cmd_code_map); ++i)
     {
-        if (!strncasecmp(commad, cmd_code_map[i].cmd, strlen(cmd_code_map[i].cmd)))
+        if (!strcasecmp(command, cmd_code_map[i].cmd))
         {
             code = cmd_code_map[i].code;
             break;
@@ -366,7 +533,7 @@ static int commad_select(MB_INFO_T *mb_info)
     /* invalid command */
     if (!code)
     {
-        code = strtol(commad, NULL, 0);
+        code = strtol(command, NULL, 0);
     }
 
     /* ModBus function command */
@@ -379,22 +546,25 @@ static int commad_select(MB_INFO_T *mb_info)
     {
         case EVOCMB_STAY :
             printf("Please input stay status [on|off]\n");
-            fgets(commad, sizeof(commad), stdin);
-            resource.stay = strncasecmp(commad, "on", 2) ? 0 : 1;
+            fgets(command, sizeof(command), stdin);
+            resource.stay = strcasecmp(command, "on") ? 0 : 1;
             break;
 
         case EVOCMB_RELY :
             printf("Please input rely status [on|off]\n");
-            fgets(commad, sizeof(commad), stdin);
-            resource.rely = strncasecmp(commad, "on", 2) ? 0 : 1;
+            fgets(command, sizeof(command), stdin);
+            resource.rely = strcasecmp(command, "on") ? 0 : 1;
             break;
+
+        case EVOCMB_RULE :
+            return command_rule_handle();
 
         case EVOCMB_QUIT :
             resource.running = 0;
             break;
             
         default :
-            printf("Invalid command(%s) code(%d)\n", commad, (int)mb_info->code);
+            printf("Invalid command(%s) code(%d)\n", command, (int)mb_info->code);
             return -1;
     }
 
@@ -415,12 +585,12 @@ static int work(EVOCMB_CTX_T *mb_ctx)
 
     while (resource.running)
     {
-        /* select a commad */
-        if (0 >= (ret = commad_select(&mb_info)))
+        /* select a command */
+        if (0 >= (ret = command_select(&mb_info)))
         {
             if (ret)
             {
-                printf("ERROR : commad set failed\n");
+                printf("ERROR : command set failed\n");
             }
             continue;
         }
@@ -498,24 +668,26 @@ static void *stay_connected_routine(void *arg)
     return NULL;
 }
 
-#define MAX_MASK_RULE_NUM 128
-
 static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
 {
-    printf("id(%d) iMask(0x%llx) oMask(0x%llx) ioStat(%s)\n", content->rule_id, 
-        content->i_mask, content->o_mask, content->io_stat ? "up" : "down");
-
     int i = 0;
 
     MB_INFO_T mb_info = {
-        .code  = MB_FUNC_02,
+        .code  = MB_FUNC_0f,
         .reg   = 16,
         .n_reg = 16
     };
 
+    mask_rule_display(content);
+
     for (i = 0; i < mb_info.n_reg; ++i)
     {
-        mb_info.value[i] = content->o_mask & (1 << i);
+        mb_info.value[i] |= content->omask.up & (1 << i);
+    }
+
+    for (i = 0; i < mb_info.n_reg; ++i)
+    {
+        mb_info.value[i] &= (~content->omask.down) & (1 << i);
     }
 
     /* send a modbsu request */
@@ -540,13 +712,6 @@ static void *io_rely_routine(void *arg)
     PTR_CHECK_NULL(arg);
 
     EVOCMB_CTX_T *mb_ctx = (EVOCMB_CTX_T *)arg;
-
-    MASK_RULE_T *ruleset = mask_rule_init(MAX_MASK_RULE_NUM);
-    if (!ruleset)
-    {
-        printf("Can not create mask rule set\n");
-        return NULL;
-    }
 
     int i = 0;
     UINT64_T imask = 0;
@@ -597,8 +762,6 @@ static void *io_rely_routine(void *arg)
         ULOCK(&resource.lock);
     }
 
-    mask_rule_exit(ruleset);
-
     return NULL;
 }
 
@@ -615,7 +778,7 @@ static int resc_init(EVOCMB_CTX_T *mb_ctx)
     }
 
     /* ModBus stay connected */
-    if (0 > pthread_create(&(resource.pid[STAY_THREAD]), NULL, io_rely_routine, mb_ctx))
+    if (0 > pthread_create(&(resource.pid[RELY_THREAD]), NULL, io_rely_routine, mb_ctx))
     {
         perror("rely thread create error");
         return -1;
@@ -651,6 +814,13 @@ int main(int argc, char *argv[ ])
         return -1;
     }
 
+    ruleset = mask_rule_init(MAX_MASK_RULE_NUM);
+    if (!ruleset)
+    {
+        printf("Can not create mask rule set\n");
+        return -1;
+    }
+
     if (0 > resc_init(mb_ctx))
     {
         printf("Can not init evoc modbus resource\n");
@@ -661,6 +831,8 @@ int main(int argc, char *argv[ ])
     work(mb_ctx);
 
     resc_uinit();
+
+    mask_rule_exit(ruleset);
 
     evoc_mb_close(mb_ctx);
     
