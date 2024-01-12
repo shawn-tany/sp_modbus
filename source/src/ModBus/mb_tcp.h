@@ -13,7 +13,9 @@
 #define MBTCP_ETHDEV_LEN    32
 #define MBTCP_IPADDR_LEN    32
 #define MBTCP_RECV_DELAY    200
+#define MBTCP_CONN_DELAY    200
 #define MBTCP_RECV_TIMEOUT  100
+#define MBTCP_CONN_TIMEOUT  10
 
 typedef struct 
 {
@@ -26,7 +28,10 @@ typedef struct
 
 typedef struct 
 {
-    int socket;
+    int      socket;
+    UINT16_T port;
+    char     ip[MBTCP_IPADDR_LEN];
+    char     ethdev[MBTCP_ETHDEV_LEN];
 } MBTCP_DESC_T;
 
 typedef struct 

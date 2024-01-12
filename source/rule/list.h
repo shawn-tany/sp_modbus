@@ -6,10 +6,8 @@ struct list_head {
 	struct list_head *prev;
 };
 
-//算出结构体成员对结构体对象首地址的偏移
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 
-// ptr成员地址， type结构体类型, member成员名
 #define container_of(ptr, type, member) ({                      \
         const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
         (type *)( (char *)__mptr - offsetof(type,member) );})

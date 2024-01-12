@@ -26,13 +26,14 @@ enum
     EVOCMB_STAY,
     EVOCMB_RELY,
     EVOCMB_RULE,
+    EVOCMB_IO
 };
 
 static EVOCMB_CTX_T *mb_ctx  = NULL; 
 static MASK_RULE_T  *ruleset = NULL;
 
 static EVOCMB_CTL_T default_ctl = {
-    .mb_type = MB_TYPE_RTU,
+    .mb_type = MB_TYPE_TCP,
 
     .tcp_ctrl = {
         .port          = 502,
@@ -62,7 +63,8 @@ static struct
     { "exit", EVOCMB_QUIT },
     { "stay", EVOCMB_STAY },
     { "rely", EVOCMB_RELY },
-    { "rule", EVOCMB_RULE }
+    { "rule", EVOCMB_RULE },
+    { "io",   EVOCMB_IO   }
 };
 
 enum 
@@ -319,6 +321,82 @@ enum
     MBRULE_GET = 2
 };
 
+static int command_io_handle(void)
+{
+    char   *ptr = NULL;
+    char    command[32] = {0};
+    char    argv[128][128];
+    int     argc = 0;
+    int     idx  = 0;
+    int     ioidx = 0;
+    IO_DIRECTION_T  direction = IO_OUTPUT;
+    IO_STATUS_T     status    = IO_ON;
+
+    while (1)
+    {
+        printf("Please input operation for io\n"
+           "eg : get in  [id]\n"
+           "     get out [id]\n"
+           "     set [id] on\n"
+           "     set [id] off\n"
+           "     exit\n");
+        do 
+        {
+            fgets(command, sizeof(command), stdin);
+
+            command[strlen(command) - 1] = 0;
+            
+            if (strlen(command))
+            {
+                break;
+            }
+        } while (1);
+
+        if (!strcmp(command, "exit"))
+        {
+            break;
+        }
+
+        ptr = strtok(command, " ");
+
+        argc = 0;
+        while (ptr)
+        {
+            snprintf(argv[argc++], sizeof(argv[argc++]), "%s", ptr);
+            ptr = strtok(NULL, " ");
+        }
+
+        idx = 0;
+        if (!strcmp(argv[idx], "get"))
+        {
+            idx++;
+
+            direction = !strcmp(argv[idx], "in") ? IO_INPUT : IO_OUTPUT;
+            idx++;
+
+            ioidx = strtol(argv[idx], NULL, 0);
+            
+            evoc_mbio_get(mb_ctx, direction, ioidx, &status);
+
+            printf("%s IO(%d) status(%s)\n", (direction == IO_INPUT) ? "in" : "out",
+                ioidx, (status == IO_ON) ? "on" : "off");
+        }
+        else if (!strcmp(argv[idx], "set"))
+        {
+            idx++;
+
+            ioidx = strtol(argv[idx], NULL, 0);
+            idx++;
+
+            status = !strcmp(argv[idx], "on") ? IO_ON : IO_OFF;
+            
+            evoc_mbio_set(mb_ctx, ioidx, status);
+        }
+    }
+
+    return 0;
+}
+
 static int command_rule_handle(void)
 {
     char *ptr = NULL;
@@ -331,143 +409,171 @@ static int command_rule_handle(void)
 
     MASK_RULE_NODE_T node;
     const MASK_RULE_NODE_T *getnode = NULL;
-    memset(&node, 0, sizeof(node));
 
-    printf("Please input operation for rule \n"
-           "eg : get all\n"
-           "     get [id]\n"
-           "     add imask.up 0xff imask.dwon 0xff omask.up 0xff omask.down 0xff prio 7\n"
-           "     add imask.up 0xff omask.up 0xff prio 7\n"
-           "     add imask.up 0xff omask.down 0xff\n"
-           "     del all\n"
-           "     del [id]\n");
-
-    do 
+    while (1)
     {
-        fgets(command, sizeof(command), stdin);
+        memset(&node, 0, sizeof(node));
 
-        command[strlen(command) - 1] = 0;
-        
-        if (strlen(command))
+        printf("Please input operation for rule \n"
+            "eg : get all\n"
+            "     get [id]\n"
+            "     add imask.up 0xff imask.dwon 0xff omask.up 0xff omask.down 0xff prio 7\n"
+            "     add imask.up 0xff omask.up 0xff prio 7\n"
+            "     add imask.up 0xff omask.down 0xff\n"
+            "     del all\n"
+            "     del [id]\n"
+            "     exit\n");
+
+        do 
+        {
+            fgets(command, sizeof(command), stdin);
+
+            command[strlen(command) - 1] = 0;
+            
+            if (strlen(command))
+            {
+                break;
+            }
+        } while (1);
+
+        if (!strcmp(command, "exit"))
         {
             break;
         }
-    } while (1);
 
-    ptr = strtok(command, " ");
+        ptr = strtok(command, " ");
 
-    while (ptr)
-    {
-        snprintf(argv[argc++], sizeof(argv[argc++]), "%s", ptr);
-        ptr = strtok(NULL, " ");
-    }
-
-    if (!strcmp(argv[idx], "del"))
-    {
-        idx++;
-        if (!strcasecmp(argv[idx], "all"))
+        while (ptr)
         {
-            /* delete all */
-            for (i = 0; i < MAX_MASK_RULE_NUM; ++i)
+            snprintf(argv[argc++], sizeof(argv[argc++]), "%s", ptr);
+            ptr = strtok(NULL, " ");
+        }
+
+        if (!strcmp(argv[idx], "del"))
+        {
+            idx++;
+            if (!strcasecmp(argv[idx], "all"))
             {
-                mask_rule_del(ruleset, i + 1);
+                /* delete all */
+                for (i = 0; i < MAX_MASK_RULE_NUM; ++i)
+                {
+                    mask_rule_del(ruleset, i + 1);
+                }
+            }
+            else
+            {
+                id = strtol(argv[idx], NULL, 0);
+
+                /* delete */
+                mask_rule_del(ruleset, id);
             }
         }
-        else
+        else if (!strcmp(argv[idx], "get"))
         {
-            id = strtol(argv[idx], NULL, 0);
-
-            /* delete */
-            mask_rule_del(ruleset, id);
-        }
-    }
-    else if (!strcmp(argv[idx], "get"))
-    {
-        idx++;
-        if (!strcasecmp(argv[idx], "all"))
-        {
-            /* get all */
-            for (i = 0; i < MAX_MASK_RULE_NUM; ++i)
+            idx++;
+            if (!strcasecmp(argv[idx], "all"))
             {
-                getnode = mask_rule_get(ruleset, i + 1);
+                /* get all */
+                for (i = 0; i < MAX_MASK_RULE_NUM; ++i)
+                {
+                    getnode = mask_rule_get(ruleset, i + 1);
+                    if (getnode)
+                    {
+                        mask_rule_display(&getnode->content);
+                    }
+                }
+            }
+            else
+            {
+                id = strtol(argv[idx], NULL, 0);
+                /* get */
+                getnode = mask_rule_get(ruleset, id);
                 if (getnode)
                 {
                     mask_rule_display(&getnode->content);
                 }
+                else
+                {
+                    printf("ERROR : No such rule\n");
+                    return 0;
+                }
             }
         }
-        else
+        else if (!strcmp(argv[idx], "add"))
         {
-            id = strtol(argv[idx], NULL, 0);
-            /* get */
-            getnode = mask_rule_get(ruleset, id);
-            if (getnode)
+            idx++;
+            if (!strcmp(argv[idx], "imask.up"))
             {
-                mask_rule_display(&getnode->content);
+                idx++;
+                node.content.imask.up = strtol(argv[idx++], NULL, 0);
             }
-            else
+
+            if (!strcmp(argv[idx], "imask.down"))
             {
-                printf("ERROR : No such rule\n");
-                return 0;
+                idx++;
+                node.content.imask.down = strtol(argv[idx++], NULL, 0);
+            }
+            
+            if (!strcmp(argv[idx], "omask.up"))
+            {
+                idx++;
+                node.content.omask.up = strtol(argv[idx++], NULL, 0);
+            }
+
+            if (!strcmp(argv[idx], "omask.down"))
+            {
+                idx++;
+                node.content.omask.down = strtol(argv[idx++], NULL, 0);
+            }
+
+            if (!strcmp(argv[idx], "prio"))
+            {
+                idx++;
+                node.content.priority = strtol(argv[idx++], NULL, 0);
+            }
+
+            /* check */
+            if (!node.content.imask.up && !node.content.imask.down)
+            {
+                printf("ERROR : Invalid rule imask up(0x%llx) down(0x%llx)!\n", 
+                    node.content.imask.up, node.content.imask.down);
+                return -1;
+            }
+
+            if (node.content.imask.up & node.content.imask.down)
+            {
+                printf("ERROR : Invalid rule imask up(0x%llx) down(0x%llx)!\n", 
+                    node.content.imask.up, node.content.imask.down);
+                return -1;
+            }
+
+            if (!node.content.omask.up && !node.content.omask.down)
+            {
+                printf("ERROR : Invalid rule omask up(0x%llx) down(0x%llx)!\n", 
+                    node.content.omask.up, node.content.omask.down);
+                return -1;
+            }
+
+            if (node.content.omask.up & node.content.omask.down)
+            {
+                printf("ERROR : Invalid rule omask up(0x%llx) down(0x%llx)!\n", 
+                    node.content.omask.up, node.content.omask.down);
+                return -1;
+            }
+
+            if (MASK_RULE_PRIORITY_NUM <= node.content.priority)
+            {
+                printf("ERROR : Invalid rule priority %d!\n", node.content.priority);
+                return -1;
+            }
+
+            /* add rule */
+            if (0 > mask_rule_add(ruleset, node))
+            {
+                printf("ERROR : failed to add rule!\n");
+                return -1;
             }
         }
-    }
-    else if (!strcmp(argv[idx], "add"))
-    {
-        idx++;
-        if (!strcmp(argv[idx], "imask.up"))
-        {
-            idx++;
-            node.content.imask.up = strtol(argv[idx++], NULL, 0);
-        }
-
-        if (!strcmp(argv[idx], "imask.down"))
-        {
-            idx++;
-            node.content.imask.down = strtol(argv[idx++], NULL, 0);
-        }
-        
-        if (!strcmp(argv[idx], "omask.up"))
-        {
-            idx++;
-            node.content.omask.up = strtol(argv[idx++], NULL, 0);
-        }
-
-        if (!strcmp(argv[idx], "omask.down"))
-        {
-            idx++;
-            node.content.omask.down = strtol(argv[idx++], NULL, 0);
-        }
-
-        if (!strcmp(argv[idx], "prio"))
-        {
-            idx++;
-            node.content.priority = strtol(argv[idx++], NULL, 0);
-        }
-
-        /* check */
-        if (!node.content.imask.up && !node.content.imask.down)
-        {
-            printf("ERROR : Invalid rule imask up(0x%llx) down(0x%llx)!\n", 
-                node.content.imask.up, node.content.imask.down);
-            return -1;
-        }
-
-        if (!node.content.omask.up && !node.content.omask.down)
-        {
-            printf("ERROR : Invalid rule omask up(0x%llx) down(0x%llx)!\n", 
-                node.content.omask.up, node.content.omask.down);
-            return -1;
-        }
-
-        if (MASK_RULE_PRIORITY_NUM <= node.content.priority)
-        {
-            printf("ERROR : Invalid rule priority %d!\n", node.content.priority);
-            return -1;
-        }
-
-        /* add rule */
-        mask_rule_add(ruleset, node);
     }
 
     return 0;
@@ -501,9 +607,10 @@ static int command_select(MB_INFO_T *mb_info)
             "   *  [   6]. FunCtion code : 0x06 Write a register        *\n"
             "   *  [  15]. FunCtion code : 0x0F Write multiple coils    *\n"
             "   *  [  16]. FunCtion code : 0x10 Write multiple register *\n"
-            "   *  [stay]. Stay connect                                 *\n"
-            "   *  [rely]. IO rely control                              *\n"
-            "   *  [rule]. IO rely rule                                 *\n"
+            "   *  [stay]. Stay connect state                           *\n"
+            "   *  [rely]. IO rely control state                        *\n"
+            "   *  [rule]. IO rely rule for IO control                  *\n"
+            "   *  [  io]. IO control                                   *\n"
             "   *  [exit]. Exit                                         *\n"
             "   *********************************************************\n\n");
     
@@ -547,17 +654,20 @@ static int command_select(MB_INFO_T *mb_info)
         case EVOCMB_STAY :
             printf("Please input stay status [on|off]\n");
             fgets(command, sizeof(command), stdin);
-            resource.stay = strcasecmp(command, "on") ? 0 : 1;
+            resource.stay = strncasecmp(command, "on", 2) ? 0 : 1;
             break;
 
         case EVOCMB_RELY :
             printf("Please input rely status [on|off]\n");
             fgets(command, sizeof(command), stdin);
-            resource.rely = strcasecmp(command, "on") ? 0 : 1;
+            resource.rely = strncasecmp(command, "on", 2) ? 0 : 1;
             break;
 
         case EVOCMB_RULE :
             return command_rule_handle();
+
+        case EVOCMB_IO :
+            return command_io_handle();
 
         case EVOCMB_QUIT :
             resource.running = 0;
@@ -672,7 +782,13 @@ static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
 {
     int i = 0;
 
-    MB_INFO_T mb_info = {
+    MB_INFO_T get_mb_info = {
+        .code  = MB_FUNC_01,
+        .reg   = 16,
+        .n_reg = 16
+    };
+
+    MB_INFO_T set_mb_info = {
         .code  = MB_FUNC_0f,
         .reg   = 16,
         .n_reg = 16
@@ -680,25 +796,39 @@ static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
 
     mask_rule_display(content);
 
-    for (i = 0; i < mb_info.n_reg; ++i)
+    /* get modbsu output coils request */
+    if (0 > evoc_mb_send(mb_ctx, &get_mb_info))
     {
-        mb_info.value[i] |= content->omask.up & (1 << i);
+        MB_PRINT("IO RELY ERROR : ModBus send request failed\n");
+        return -1;
     }
 
-    for (i = 0; i < mb_info.n_reg; ++i)
+    /* get modbsu output coils response */
+    if (0 > evoc_mb_recv(mb_ctx, &get_mb_info))
     {
-        mb_info.value[i] &= (~content->omask.down) & (1 << i);
+        MB_PRINT("IO RELY ERROR : ModBus recv response failed\n");
+        return -1;
+    }
+
+    for (i = 0; i < get_mb_info.n_byte; ++i)
+    {
+        set_mb_info.value[i] = get_mb_info.value[i] | (content->omask.up << (8 * i));
+    }
+
+    for (i = 0; i < get_mb_info.n_byte; ++i)
+    {
+        set_mb_info.value[i] &= ((~content->omask.down) << (8 * i));
     }
 
     /* send a modbsu request */
-    if (0 > evoc_mb_send(mb_ctx, &mb_info))
+    if (0 > evoc_mb_send(mb_ctx, &set_mb_info))
     {
         MB_PRINT("IO RELY ERROR : ModBus send request failed\n");
         return -1;
     }
 
     /* recv a modbus response */
-    if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+    if (0 > evoc_mb_recv(mb_ctx, &set_mb_info))
     {
         MB_PRINT("IO RELY ERROR : ModBus recv response failed\n");
         return -1;

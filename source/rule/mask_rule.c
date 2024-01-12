@@ -56,24 +56,21 @@ int mask_rule_exit(MASK_RULE_T *ruleset)
 
 int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
 {
-    /* get a empty node from id list */
-    struct list_head *newhead = ruleset->id_list.last_node->next;
-    if (!newhead)
-    {
-        return -1;
-    }
-
-    MASK_RULE_NODE_T *newrulenode = list_entry(newhead, MASK_RULE_NODE_T, id_head);
-    if (!newrulenode)
-    {
-        return -1;
-    }
-
     int priority = rulenode.content.priority;
     int ruletype = rulenode.content.type;
+    int prioidx  = 0;
+
+    struct list_head *newhead     = NULL;
+    MASK_RULE_NODE_T *newrulenode = NULL;
+
+    /* check cap */
+    if (ruleset->rule_cnt >= ruleset->rule_cap)
+    {
+        return -1;
+    }
 
     /* check priority */
-    if (MASK_RULE_PRIORITY_NUM <= priority)
+    if (MASK_RULE_PRIORITY_NUM < priority)
     {
         return -1;
     }
@@ -84,8 +81,28 @@ int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
         return -1;
     }
 
-    /* check cap */
-    if (ruleset->rule_cnt >= ruleset->rule_cap)
+    /* check imask */
+    if (rulenode.content.imask.down & rulenode.content.imask.up)
+    {
+        return -1;
+    }
+
+    /* check omask */
+    if (rulenode.content.omask.down & rulenode.content.omask.up)
+    {
+        return -1;
+    }
+
+    /* get a empty node head from id list */
+    newhead = ruleset->id_list.last_node->next;
+    if (!newhead)
+    {
+        return -1;
+    }
+
+    /* get a empty node from id list */
+    newrulenode = list_entry(newhead, MASK_RULE_NODE_T, id_head);
+    if (!newrulenode)
     {
         return -1;
     }
@@ -95,17 +112,19 @@ int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
     newrulenode->valid           = 1;
     newrulenode->content.rule_id = ++(ruleset->rule_id);
 
+    prioidx = priority ? (priority - 1) : 0;
+
     /* inset a new to priority list tail */
-    list_add_tail(&newrulenode->priority_head, ruleset->priority_list[priority].last_node);
+    list_add_tail(&newrulenode->priority_head, ruleset->priority_list[prioidx].last_node);
 
     /* updata last id node */
     ruleset->id_list.last_node = &newrulenode->id_head;
 
     /* updata last priority node */
-    ruleset->priority_list[priority].last_node = &newrulenode->priority_head;
+    ruleset->priority_list[prioidx].last_node = &newrulenode->priority_head;
 
     /* updata rule count */
-    ruleset->priority_list[priority].rule_num++;
+    ruleset->priority_list[prioidx].rule_num++;
     ruleset->rule_cnt++;
 
     return 0;

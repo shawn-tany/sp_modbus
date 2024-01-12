@@ -16,6 +16,7 @@
 #include <sys/select.h>
 #include <arpa/inet.h> 
 #include <net/if.h>
+#include <netinet/tcp.h>
 
 #include "mb_tcp.h"
 
@@ -106,13 +107,100 @@ static int mbap_head_decap_check(MBTCP_DATA_T *mb_tcp_data)
     return ret;
 }
 
+static int tcp_connect(MBTCP_DESC_T *mb_tcp_desc)
+{
+    PTR_CHECK_N1(mb_tcp_desc);
+
+    int ret  = 0;
+    int sock = 0;
+    struct sockaddr_in server_addr = {0};
+    struct ifreq ifrq = {0};
+
+    /* create socket */
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (0 > sock) 
+    {
+        perror("socket error");
+        return -1;
+    }
+
+    /* bind tcp_ctl->ethdev */
+    snprintf(ifrq.ifr_ifrn.ifrn_name, MBTCP_ETHDEV_LEN, "%s", mb_tcp_desc->ethdev);
+    ret = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, (char *)&ifrq, sizeof(ifrq));
+    if (ret < 0)
+    {
+        perror("setsockopt error");
+        close(sock);
+        return -1;
+    }
+
+    /* server ip & server port */
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port   = htons(mb_tcp_desc->port);  
+    inet_pton(AF_INET, mb_tcp_desc->ip, &server_addr.sin_addr);
+
+    /* connect server */
+    ret = connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (ret < 0) {
+        perror("connect error");
+        close(sock);
+        return -1;
+    }
+
+    mb_tcp_desc->socket = sock;
+
+    return 0;
+}
+
+static int tcp_re_connect(MBTCP_DESC_T *mb_tcp_desc)
+{
+    struct tcp_info info;
+    int ret    = 0;
+    int conntm = 0;
+    int len    = sizeof(info);
+    int sock   = mb_tcp_desc->socket;
+
+    ret = getsockopt(sock, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)(&len));
+    if (0 > ret)
+    {
+        perror("getsockopt error");
+        return -1;
+    }
+
+    if (TCP_ESTABLISHED != info.tcpi_state)
+    {
+        while (conntm++ <= MBTCP_CONN_TIMEOUT)
+        {
+            printf("try to re-connect times(%d)\n", conntm);
+
+            close(mb_tcp_desc->socket);
+
+            if (0 > tcp_connect(mb_tcp_desc))
+            {
+                usleep(MBTCP_CONN_DELAY);
+            }
+            else
+            {
+                return 1;
+            }
+        }
+    }
+    else
+    {
+        return 0;
+    }
+
+    return -1;
+}
+
 static int tcp_recv(MBTCP_DESC_T *mb_tcp_desc, MB_DATA_T *mb_data)
 {
     PTR_CHECK_N1(mb_tcp_desc);
     PTR_CHECK_N1(mb_data);
 
+    int ret     = 0;
     int ready   = 0;
-    int timeout = 0;
+    int recvtm  = 0;
     int length  = 0;
     int socket  = mb_tcp_desc->socket;
 
@@ -124,6 +212,19 @@ static int tcp_recv(MBTCP_DESC_T *mb_tcp_desc, MB_DATA_T *mb_data)
 
     FD_ZERO(&rcvset);
     FD_SET(socket, &rcvset);
+
+    if ((ret = tcp_re_connect(mb_tcp_desc)))
+    {
+        if (-1 == ret)
+        {
+            printf("tcp re-connect before recv error\n");
+            return -1;
+        }
+        else
+        {
+            printf("tcp re-connect before recv success\n");
+        }
+    }
     
     ready = select(socket + 1, &rcvset, NULL, NULL, &tv);
     if (0 > ready)
@@ -139,7 +240,7 @@ static int tcp_recv(MBTCP_DESC_T *mb_tcp_desc, MB_DATA_T *mb_data)
 
     mb_data->data_len = 0;
 
-    while ((timeout++ <= MBTCP_RECV_TIMEOUT))
+    while ((recvtm++ <= MBTCP_RECV_TIMEOUT))
     {
         length = recv(socket, (mb_data->data + mb_data->data_len), (mb_data->max_data_len - mb_data->data_len), MSG_DONTWAIT);
         if(0 > length)
@@ -147,6 +248,7 @@ static int tcp_recv(MBTCP_DESC_T *mb_tcp_desc, MB_DATA_T *mb_data)
             if ((EAGAIN == errno) || (EWOULDBLOCK == errno))
             {
                 usleep(MBTCP_RECV_DELAY);
+                continue;
             }
             else
             {
@@ -156,12 +258,25 @@ static int tcp_recv(MBTCP_DESC_T *mb_tcp_desc, MB_DATA_T *mb_data)
         }
         else if(length == 0)
         {
-            return 0;
+            if ((ret = tcp_re_connect(mb_tcp_desc)))
+            {
+                if (-1 == ret)
+                {
+                    printf("tcp re-connect after recv error\n");
+                    return -1;
+                }
+                else
+                {
+                    printf("tcp re-connect after recv success\n");
+                    recvtm = 0;
+                    continue;
+                }
+            }
         }
         else
         {
             mb_data->data_len += length;
-            timeout = 0;
+            recvtm = 0;
             continue;
         }
     }
@@ -174,8 +289,23 @@ static int tcp_send(MBTCP_DESC_T *mb_tcp_desc, MB_DATA_T *mb_data)
     PTR_CHECK_N1(mb_tcp_desc);
     PTR_CHECK_N1(mb_data);
 
+    int ret    = 0;
     int length = 0;
     int socket = mb_tcp_desc->socket;
+
+    /* re-connect */
+    if ((ret = tcp_re_connect(mb_tcp_desc)))
+    {
+        if (-1 == ret)
+        {
+            printf("tcp re-connect error\n");
+            return -1;
+        }
+        else
+        {
+            printf("tcp re-connect success\n");
+        }
+    }
 
     length = send(socket, mb_data->data, mb_data->data_len, MSG_DONTWAIT);
     if (0 > length)
@@ -198,10 +328,7 @@ MBTCP_CTX_T *mb_tcp_init(MBTCP_CTL_T *tcp_ctl)
     PTR_CHECK_NULL(tcp_ctl);
 
     MBTCP_CTX_T *mbtcp_ctx = NULL;
-    int ret;
-    int sock = 0;
-    struct sockaddr_in server_addr = {0};
-    struct ifreq ifrq = {0};
+    int ret = 0;
 
     /* create mbtcp context */
     mbtcp_ctx = (MBTCP_CTX_T *)malloc(sizeof(MBTCP_CTX_T));
@@ -224,44 +351,19 @@ MBTCP_CTX_T *mb_tcp_init(MBTCP_CTL_T *tcp_ctl)
     mbtcp_ctx->mb_tcp_data.mbap_head[MB_TX].protocol_code    = 0x0;
     mbtcp_ctx->mb_tcp_data.mbap_head[MB_TX].unit_code        = tcp_ctl->unitid;
 
-    /* create socket */
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (0 > sock) 
+    mbtcp_ctx->mb_tcp_desc.port = tcp_ctl->port;
+    snprintf(mbtcp_ctx->mb_tcp_desc.ip, sizeof(mbtcp_ctx->mb_tcp_desc.ip), "%s", tcp_ctl->ip);
+    snprintf(mbtcp_ctx->mb_tcp_desc.ethdev, sizeof(mbtcp_ctx->mb_tcp_desc.ethdev), "%s", tcp_ctl->ethdev);
+
+    /* tcp connect */
+    ret = tcp_connect(&mbtcp_ctx->mb_tcp_desc);
+    if (0 > ret)
     {
-        perror("socket error");
+        printf("tcp connect failed\n");
         mb_data_destory(mbtcp_ctx->mb_tcp_data.mb_data);
         free(mbtcp_ctx);
         return NULL;
     }
-
-    /* bind tcp_ctl->ethdev */
-    snprintf(ifrq.ifr_ifrn.ifrn_name, MBTCP_ETHDEV_LEN, "%s", tcp_ctl->ethdev);
-    ret = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, (char *)&ifrq, sizeof(ifrq));
-    if (ret < 0)
-    {
-        perror("setsockopt error");
-        mb_data_destory(mbtcp_ctx->mb_tcp_data.mb_data);
-        free(mbtcp_ctx);
-        close(sock);
-        return NULL;
-    }
-
-    /* server ip & server port */
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(tcp_ctl->port);  
-    inet_pton(AF_INET, tcp_ctl->ip, &server_addr.sin_addr);
-
-    /* connect server */
-    ret = connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
-    if (ret < 0) {
-        perror("connect error");
-        mb_data_destory(mbtcp_ctx->mb_tcp_data.mb_data);
-        free(mbtcp_ctx);
-        close(sock);
-        return NULL;
-    }
-
-    mbtcp_ctx->mb_tcp_desc.socket = sock;
 
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 

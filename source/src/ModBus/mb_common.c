@@ -121,8 +121,9 @@ void mb_data_clear(MB_DATA_T *mb_data)
     PTR_CHECK_VOID(mb_data);
     
     memset(mb_data->data, 0, mb_data->max_data_len);
-    mb_data->data_len = 0;
-    mb_data->offset   = 0;
+    mb_data->data_len         = 0;
+    mb_data->operate_data_len = 0;
+    mb_data->offset           = 0;
 
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 }
@@ -264,7 +265,7 @@ void mb_data_decap(MB_DATA_T *mb_data)
         case MB_FUNC_01 : 
         case MB_FUNC_02 : 
         case MB_FUNC_03 : 
-        case MB_FUNC_04 :             
+        case MB_FUNC_04 : 
             /* value byte number */
             MBDATA_BYTE_GET(mb_data, mb_info->n_byte);
             

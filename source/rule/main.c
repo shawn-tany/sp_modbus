@@ -29,7 +29,7 @@ int main()
         memset(&addnode, 0, sizeof(addnode));
 
         addnode.content.priority = i % 8;
-        addnode.content.type     = RULE_TYPE_FLEX;
+        addnode.content.type     = RULE_TYPE_FUZZ;
 
         if (i % 2)
         {

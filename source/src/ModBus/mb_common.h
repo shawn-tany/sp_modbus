@@ -49,7 +49,8 @@ typedef unsigned long long  UINT64_T;
 /* insert a byte to modbus data */
 #define MBDATA_BYTE_SET(mb_data, byte)                              \
 {                                                                   \
-    if ((mb_data->data_len + 1) < mb_data->max_data_len)            \
+    mb_data->operate_data_len += 1;                                 \
+    if ((mb_data->data_len + 1) <= mb_data->max_data_len)           \
     {                                                               \
         *(mb_data->data + mb_data->data_len) = byte;                \
         mb_data->data_len += 1;                                     \
@@ -59,7 +60,8 @@ typedef unsigned long long  UINT64_T;
 /* insert a word to modbus data */
 #define MBDATA_WORD_SET(mb_data, word)                              \
 {                                                                   \
-    if ((mb_data->data_len + 2) < mb_data->max_data_len)            \
+    mb_data->operate_data_len += 2;                                 \
+    if ((mb_data->data_len + 2) <= mb_data->max_data_len)           \
     {                                                               \
         *((UINT16_T *)(mb_data->data + mb_data->data_len)) = word;  \
         mb_data->data_len += 2;                                     \
@@ -69,7 +71,8 @@ typedef unsigned long long  UINT64_T;
 /* get a byte from modbus data */
 #define MBDATA_BYTE_GET(mb_data, byte)                              \
 {                                                                   \
-    if ((mb_data->offset + 1) < mb_data->data_len)                  \
+    mb_data->operate_data_len += 1;                                 \
+    if ((mb_data->offset + 1) <= mb_data->data_len)                 \
     {                                                               \
         byte = *(mb_data->data + mb_data->offset);                  \
         mb_data->offset += 1;                                       \
@@ -79,6 +82,7 @@ typedef unsigned long long  UINT64_T;
 /* get a word from modbus data */
 #define MBDATA_WORD_GET(mb_data, word)                              \
 {                                                                   \
+    mb_data->operate_data_len += 2;                                 \
     if ((mb_data->offset + 2) <= mb_data->data_len)                 \
     {                                                               \
         word = *((UINT16_T *)(mb_data->data + mb_data->offset));    \
@@ -156,9 +160,9 @@ typedef struct
 
     /* modbus cache */
     UINT16_T  max_data_len;     /* ModBus data cache size */
+    UINT16_T  operate_data_len; /* ModBus data length you want to write/read, other than real data length */
     UINT16_T  data_len;         /* ModBus write offset & send/recv data length */
     UINT16_T  offset;           /* ModBus read offset */
-    UINT16_T  respons_pdu_len;  /* the PDU length of ModBus response you want to recv */
     UINT8_T   data[0];
 } __attribute__((packed)) MB_DATA_T;
 

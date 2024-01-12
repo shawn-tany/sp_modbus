@@ -9,8 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #include "evoc_mb.h"
+
+#define DFT_MBIO_CONFIG_FILE "/usr/local/etc/mb_io.conf"
 
 /*
  * Function : updata ModBus master information to ModBus context
@@ -104,26 +105,127 @@ static int evoc_mbctx_info_takeout(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
         mbrtuctx_info_takeout(mb_ctx->ctx.mb_rtu_ctx, mb_info);
     }
 
-    if (mb_info->err)
-    {
-        ret = -1;
-    }
-
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
     return ret;
 }
 
+static int evoc_io_config(EVOCMB_CTX_T *mb_ctx, char *filename)
+{
+    PTR_CHECK_N1(mb_ctx);
+    PTR_CHECK_N1(filename);
+
+    FILE *fp         = NULL;
+    char  line[512]  = {0};
+    char  key[2][16] = {0};
+    char *pos        = NULL;
+    char *ptr        = NULL;
+    int   length     = 0;
+    int   i          = 0;
+
+    if (!(fp = fopen(filename, "r")))
+    {
+        perror("fopen error");
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), fp))
+    {
+        pos = line;
+
+        if (!(length = strlen(pos)))
+        {
+            continue;
+        }
+
+        for (i = 0; i < length; ++i)
+        {
+            if (pos[i] == ' ' || pos[i] == '\t')
+            {
+                pos++;
+            }
+            else
+            {
+                break;
+            }
+        }
+        length -= i;
+
+        if (!length || '#' == pos[0])
+        {
+            continue;
+        }
+
+        if (pos[length - 1] == '\n')
+        {
+            pos[length - 1] = 0;
+            length -= 1;
+
+            if (length && pos[length - 1] == '\r')
+            {
+                pos[length - 1] = 0;
+                length -= 1;
+            }
+        }
+
+        if (!length)
+        {
+            continue;
+        }
+
+        ptr = strtok(pos, "=");
+
+        i = 0;
+        while (ptr && (i < sizeof(key[0])))
+        {
+            snprintf(key[i], sizeof(key[i]), "%s", ptr);
+            ptr = strtok(NULL, "=");
+            i++;
+        }
+
+        if (!strcmp(key[0], "IADDR_START"))
+        {
+            mb_ctx->mb_ioconf.i_addr_start = strtol(key[1], NULL, 0);
+        }
+        else if (!strcmp(key[0], "OADDR_START"))
+        {
+            mb_ctx->mb_ioconf.o_addr_start = strtol(key[1], NULL, 0);
+        }
+        else if (!strcmp(key[0], "I_NUMBER"))
+        {
+            mb_ctx->mb_ioconf.i_number = strtol(key[1], NULL, 0);
+        }
+        else if (!strcmp(key[0], "O_NUMBER"))
+        {
+            mb_ctx->mb_ioconf.o_number = strtol(key[1], NULL, 0);
+        }
+    }
+
+    printf("IADDR_START = 0x%x\n"
+           "I_NUMBER    = %d\n"
+           "OADDR_START = 0x%x\n"
+           "O_NUMBER    = %d\n",
+           mb_ctx->mb_ioconf.i_addr_start, mb_ctx->mb_ioconf.i_number,
+           mb_ctx->mb_ioconf.o_addr_start, mb_ctx->mb_ioconf.o_number);
+
+    fclose(fp);
+
+    return 0;
+}
+
 /*
  * Function  : Create a ModBus Context
- * mb_ctl    : some information for create modBus Context
+ * mb_ctl    : some information for create ModBus Context
  * return    : (EVOCMB_CTX_T *)=SUCCESS NULL=ERRROR
  */
 EVOCMB_CTX_T *evoc_mb_init(EVOCMB_CTL_T *mb_ctl)
 {
+    PTR_CHECK_NULL(mb_ctl);
+
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
     EVOCMB_CTX_T *mb_ctx = NULL;
+    char *ioconf = strlen(mb_ctl->mb_conf) ? mb_ctl->mb_conf : DFT_MBIO_CONFIG_FILE;
 
     /* create evoc modbus context */
     mb_ctx = (EVOCMB_CTX_T *)malloc(sizeof(EVOCMB_CTX_T));
@@ -164,6 +266,8 @@ EVOCMB_CTX_T *evoc_mb_init(EVOCMB_CTL_T *mb_ctl)
         free(mb_ctx);
         return NULL;
     }
+
+    evoc_io_config(mb_ctx, ioconf);
 
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -261,6 +365,91 @@ int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
     return length;
+}
+
+int evoc_mbio_get(EVOCMB_CTX_T *mb_ctx, IO_DIRECTION_T direction, 
+    UINT16_T ioidx, IO_STATUS_T *status)
+{
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
+    PTR_CHECK_N1(mb_ctx);
+    PTR_CHECK_N1(status);
+
+    UINT16_T coil_num  = (direction == IO_INPUT) ? mb_ctx->mb_ioconf.i_number : 
+                                                   mb_ctx->mb_ioconf.o_number;
+    UINT16_T func_code = (direction == IO_INPUT) ? MB_FUNC_02 : MB_FUNC_01;
+    UINT16_T start_reg = (direction == IO_INPUT) ? mb_ctx->mb_ioconf.i_addr_start : 
+                                                   mb_ctx->mb_ioconf.o_addr_start;
+
+    MB_INFO_T get_mb_info = {
+        .code  = func_code,
+        .reg   = start_reg + ioidx,
+        .n_reg = 1
+    };
+
+    if (ioidx >= coil_num)
+    {
+        MB_PRINT("IO GET ERROR : Invalid coil index\n");
+        return -1;
+    }
+
+    /* send a modbsu request */
+    if (0 > evoc_mb_send(mb_ctx, &get_mb_info))
+    {
+        MB_PRINT("IO GET ERROR : ModBus send request failed\n");
+        return -1;
+    }
+
+    /* recv a modbus response */
+    if (0 > evoc_mb_recv(mb_ctx, &get_mb_info))
+    {
+        MB_PRINT("IO GET ERROR : ModBus recv response failed\n");
+        return -1;
+    }
+
+    *status = *(UINT16_T *)(&get_mb_info.value[0]) ? IO_ON : IO_OFF;
+    
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
+    return 0;
+}
+
+int evoc_mbio_set(EVOCMB_CTX_T *mb_ctx, UINT16_T ioidx, IO_STATUS_T statu)
+{
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
+    PTR_CHECK_N1(mb_ctx);
+
+    MB_INFO_T set_mb_info = {
+        .code  = MB_FUNC_05,
+        .reg   = ioidx + mb_ctx->mb_ioconf.o_addr_start,
+        .n_reg = 1
+    };
+    *((UINT16_T *)(&set_mb_info.value[0])) = (IO_ON == statu) ? 0xff : 0x00;
+
+    if (ioidx >= mb_ctx->mb_ioconf.o_number)
+    {
+        MB_PRINT("IO SET ERROR : Invalid coil index\n");
+        return -1;
+    }
+
+    /* get modbsu output coils request */
+    if (0 > evoc_mb_send(mb_ctx, &set_mb_info))
+    {
+        MB_PRINT("IO SET ERROR : ModBus send request failed\n");
+        return -1;
+    }
+
+    /* get modbsu output coils response */
+    if (0 > evoc_mb_recv(mb_ctx, &set_mb_info))
+    {
+        MB_PRINT("IO SET ERROR : ModBus recv response failed\n");
+        return -1;
+    }
+
+    MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
+
+    return 0;
 }
 
 /*
