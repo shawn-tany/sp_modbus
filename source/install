@@ -4,8 +4,10 @@ BIN_DIR=./bin
 BITNAME=`getconf LONG_BIT`
 LIBNAME=${LIB_DIR}/liblinux${BITNAME}modbus
 APP=${BIN_DIR}/evoc_mb_demo
+CONF=mb_io.conf
 
 cp ${LIBNAME}.* /usr/lib
 cp ${LIBNAME}.* /usr/lib${BITNAME}
 cp ${APP} /usr/bin
 cp ${APP} /usr/sbin
+cp ${CONF} /usr/local/etc

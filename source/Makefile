@@ -4,6 +4,7 @@ RELEASE_DIR := ../release
 LIB_DIR     := lib
 INC_DIR     := include
 BIN_DIR     := bin
+CONF_FILE   := mb_io.conf
 
 BITNAME     := $(shell getconf LONG_BIT)
 LIBNAME     := $(LIB_DIR)/liblinux$(BITNAME)modbus
@@ -54,11 +55,13 @@ install :
 	$(HIDE) cp $(LIBNAME).* /usr/lib$(BITNAME)
 	$(HIDE) cp $(APP) /usr/bin
 	$(HIDE) cp $(APP) /usr/sbin
+	$(HIDE) cp $(CONF_FILE) /usr/local/etc
 
 release :
 	$(HIDE) mkdir -p $(RELEASE_DIR)
 	$(HIDE) cp README.md  $(RELEASE_DIR) -rf
 	$(HIDE) cp install  $(RELEASE_DIR) -rf
+	$(HIDE) cp $(CONF_FILE)  $(RELEASE_DIR) -rf
 	$(HIDE) cp $(BIN_DIR) $(RELEASE_DIR) -rf
 	$(HIDE) cp $(LIB_DIR) $(RELEASE_DIR) -rf
 	$(HIDE) cp $(INC_DIR) $(RELEASE_DIR) -rf

@@ -118,6 +118,14 @@ static struct option long_options[] = {
     { "help",             0, 0, EVOCMB_OPT_HELP             }
 };
 
+static void signal_handle(int arg)
+{
+    if (SIGINT == arg)
+    {
+        resource.running = 0;
+    }
+}
+
 /*
  * Function  : show ModBus demo option of command line
  * Parameter : void
@@ -329,6 +337,7 @@ static int command_io_handle(void)
     int     argc = 0;
     int     idx  = 0;
     int     ioidx = 0;
+    int     ret  = 0;
     IO_DIRECTION_T  direction = IO_OUTPUT;
     IO_STATUS_T     status    = IO_ON;
 
@@ -376,7 +385,15 @@ static int command_io_handle(void)
 
             ioidx = strtol(argv[idx], NULL, 0);
             
-            evoc_mbio_get(mb_ctx, direction, ioidx, &status);
+            LOCK(&resource.lock);
+            ret = evoc_mbio_get(mb_ctx, direction, ioidx, &status);
+            ULOCK(&resource.lock);
+
+            if (0 > ret)
+            {
+                printf("get input IO state failed\n");
+                continue;
+            }
 
             printf("%s IO(%d) status(%s)\n", (direction == IO_INPUT) ? "in" : "out",
                 ioidx, (status == IO_ON) ? "on" : "off");
@@ -390,7 +407,15 @@ static int command_io_handle(void)
 
             status = !strcmp(argv[idx], "on") ? IO_ON : IO_OFF;
             
-            evoc_mbio_set(mb_ctx, ioidx, status);
+            LOCK(&resource.lock);
+            ret = evoc_mbio_set(mb_ctx, ioidx, status);
+            ULOCK(&resource.lock);
+
+            if (0 > ret)
+            {
+                printf("set input IO state failed\n");
+                continue;
+            }
         }
     }
 
@@ -401,11 +426,12 @@ static int command_rule_handle(void)
 {
     char *ptr = NULL;
     char  command[128] = {0};
-    char  argv[128][128];
+    char  argv[128][128] = {0};
     int   argc = 0;
     int   id   = 0;
     int   i    = 0;
     int   idx  = 0;
+    int   ret  = 0;
 
     MASK_RULE_NODE_T node;
     const MASK_RULE_NODE_T *getnode = NULL;
@@ -413,6 +439,10 @@ static int command_rule_handle(void)
     while (1)
     {
         memset(&node, 0, sizeof(node));
+        memset(command, 0, sizeof(command));
+        argc = 0;
+        idx  = 0;
+        ptr  = NULL;
 
         printf("Please input operation for rule \n"
             "eg : get all\n"
@@ -465,7 +495,10 @@ static int command_rule_handle(void)
                 id = strtol(argv[idx], NULL, 0);
 
                 /* delete */
-                mask_rule_del(ruleset, id);
+                if (0 > mask_rule_del(ruleset, id))
+                {
+                    printf("failed to del rule %d\n", id);
+                }
             }
         }
         else if (!strcmp(argv[idx], "get"))
@@ -502,6 +535,9 @@ static int command_rule_handle(void)
         else if (!strcmp(argv[idx], "add"))
         {
             idx++;
+
+            node.content.type = RULE_TYPE_FUZZ;
+
             if (!strcmp(argv[idx], "imask.up"))
             {
                 idx++;
@@ -568,9 +604,9 @@ static int command_rule_handle(void)
             }
 
             /* add rule */
-            if (0 > mask_rule_add(ruleset, node))
+            if (0 > (ret = mask_rule_add(ruleset, node)))
             {
-                printf("ERROR : failed to add rule!\n");
+                printf("ERROR : failed to add rule, %s!\n", mask_rule_err_get(ret));
                 return -1;
             }
         }
@@ -781,20 +817,19 @@ static void *stay_connected_routine(void *arg)
 static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
 {
     int i = 0;
+    int j = 0;
 
     MB_INFO_T get_mb_info = {
         .code  = MB_FUNC_01,
-        .reg   = 16,
+        .reg   = 0x0000,
         .n_reg = 16
     };
 
     MB_INFO_T set_mb_info = {
         .code  = MB_FUNC_0f,
-        .reg   = 16,
+        .reg   = 0x0000,
         .n_reg = 16
     };
-
-    mask_rule_display(content);
 
     /* get modbsu output coils request */
     if (0 > evoc_mb_send(mb_ctx, &get_mb_info))
@@ -812,12 +847,19 @@ static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
 
     for (i = 0; i < get_mb_info.n_byte; ++i)
     {
-        set_mb_info.value[i] = get_mb_info.value[i] | (content->omask.up << (8 * i));
+        for (j = 0; j < 8; ++j)
+        {
+            set_mb_info.value[(i * 8) + j] = (!!(get_mb_info.value[i] & (1 << j))) |
+                 (!!(content->omask.up & (1 << ((8 * i) + j))));
+        }
     }
 
     for (i = 0; i < get_mb_info.n_byte; ++i)
     {
-        set_mb_info.value[i] &= ((~content->omask.down) << (8 * i));
+        for (j = 0; j < 8; ++j)
+        {
+            set_mb_info.value[(i * 8) + j] &= (!!((~content->omask.down) & (1 << ((8 * i) + j))));
+        }
     }
 
     /* send a modbsu request */
@@ -847,14 +889,14 @@ static void *io_rely_routine(void *arg)
     UINT64_T imask = 0;
 
     MB_INFO_T mb_info = {
-        .code  = MB_FUNC_02,
+        .code  = MB_FUNC_01,
         .reg   = 0x0000,
         .n_reg = 16
     };
 
     while (resource.running)
     {
-        sleep(1);
+        usleep(100);
 
         LOCK(&resource.lock);
 
@@ -883,7 +925,7 @@ static void *io_rely_routine(void *arg)
 
             for (i = 0; i < mb_info.n_byte; ++i)
             {
-                imask = mb_info.value[i] << (i * 8);
+                imask |= mb_info.value[i] << (i * 8);
             }
 
             mask_rule_macth(ruleset, imask, io_rely_handle, NULL);
@@ -934,6 +976,8 @@ static void resc_uinit(void)
 int main(int argc, char *argv[ ])
 {   
     EVOCMB_CTL_T ctl = default_ctl;
+
+    signal(SIGINT, signal_handle);
 
     arg_parse(argc, argv, &ctl);
 

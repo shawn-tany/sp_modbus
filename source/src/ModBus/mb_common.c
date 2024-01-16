@@ -264,8 +264,6 @@ void mb_data_decap(MB_DATA_T *mb_data)
     {
         case MB_FUNC_01 : 
         case MB_FUNC_02 : 
-        case MB_FUNC_03 : 
-        case MB_FUNC_04 : 
             /* value byte number */
             MBDATA_BYTE_GET(mb_data, mb_info->n_byte);
             
@@ -273,6 +271,18 @@ void mb_data_decap(MB_DATA_T *mb_data)
             for (i = 0; i < mb_info->n_byte; i++)
             {
                 MBDATA_BYTE_GET(mb_data, mb_info->value[i]);
+            }
+            break;
+
+        case MB_FUNC_03 : 
+        case MB_FUNC_04 : 
+            /* value byte number */
+            MBDATA_BYTE_GET(mb_data, mb_info->n_byte);
+            
+            /* value */
+            for (i = 0; i < mb_info->n_byte; i += 2)
+            {
+                MBDATA_WORD_GET(mb_data, *(UINT16_T *)(&mb_info->value[i]));
             }
             break;
             

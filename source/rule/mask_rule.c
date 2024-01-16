@@ -4,6 +4,59 @@
 
 #include "mask_rule.h"
 
+enum mask_rule_err 
+{
+    MR_SUCCESS = 0,
+    MR_ERR_MEM_ALLOC,
+    MR_ERR_CAP_FULL,
+    MR_ERR_CAP_EMPTY,
+    MR_ERR_INVALID_PRIO,
+    MR_ERR_INVALID_TYPE,
+    MR_ERR_INVALID_IMASK,
+    MR_ERR_INVALID_OMASK,
+    MR_ERR_GET_HEAD,
+    MR_ERR_GET_NODE,
+    MR_ERR_SEARCH_NODE,
+    MR_ERR_INVALID_NODE,
+    MR_ERR_CALLBACK,
+};
+
+char *mask_rule_err_get(int err)
+{
+    struct
+    {
+        int   code;
+        char *msg;
+    } err_map[] =
+    {
+        { MR_SUCCESS,            "success"                    },
+        { -MR_ERR_MEM_ALLOC,     "failed to create memory"    },
+        { -MR_ERR_CAP_FULL,      "rule capacity is full"      },
+        { -MR_ERR_CAP_EMPTY,     "rule capacity is empty"     },
+        { -MR_ERR_INVALID_PRIO,  "invalid priority"           },
+        { -MR_ERR_INVALID_TYPE,  "invalid rule type"          },
+        { -MR_ERR_INVALID_IMASK, "invalid imask"              },
+        { -MR_ERR_INVALID_OMASK, "invalid omask"              },
+        { -MR_ERR_GET_HEAD,      "failed to get list head"    },
+        { -MR_ERR_GET_NODE,      "failed to get rule node"    },
+        { -MR_ERR_SEARCH_NODE,   "failed to search rule node" },
+        { -MR_ERR_INVALID_NODE,  "invalid rule node"          },
+        { -MR_ERR_CALLBACK,      "callback error"             }
+    };
+
+    int i = 0;
+
+    for (i = MR_SUCCESS; i <= MR_ITEM(err_map); ++i)
+    {
+        if (err == err_map[i].code)
+        {
+            return err_map[i].msg;
+        }
+    }
+
+    return "unkown";
+}
+
 MASK_RULE_T *mask_rule_init(UINT16_T rule_num)
 {
     int i = 0;
@@ -47,16 +100,17 @@ MASK_RULE_T *mask_rule_init(UINT16_T rule_num)
     return ruleset;
 }
 
-int mask_rule_exit(MASK_RULE_T *ruleset)
+void mask_rule_exit(MASK_RULE_T *ruleset)
 {
-    free(ruleset);
-
-    return 0;
+    if (ruleset)
+    {
+        free(ruleset);
+    }
 }
 
 int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
 {
-    int priority = rulenode.content.priority;
+    int priority = 0;
     int ruletype = rulenode.content.type;
     int prioidx  = 0;
 
@@ -66,53 +120,58 @@ int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
     /* check cap */
     if (ruleset->rule_cnt >= ruleset->rule_cap)
     {
-        return -1;
+        return -MR_ERR_CAP_FULL;
     }
 
     /* check priority */
-    if (MASK_RULE_PRIORITY_NUM < priority)
+    if (MASK_RULE_PRIORITY_NUM < priority || 0 > priority)
     {
-        return -1;
+        return -MR_ERR_INVALID_PRIO;
     }
 
     /* check type */
     if (RULE_TYPE_FLEX != ruletype && RULE_TYPE_FUZZ != ruletype)
     {
-        return -1;
+        return -MR_ERR_INVALID_TYPE;
     }
 
     /* check imask */
     if (rulenode.content.imask.down & rulenode.content.imask.up)
     {
-        return -1;
+        return -MR_ERR_INVALID_IMASK;
     }
 
     /* check omask */
     if (rulenode.content.omask.down & rulenode.content.omask.up)
     {
-        return -1;
+        return -MR_ERR_INVALID_OMASK;
     }
 
     /* get a empty node head from id list */
     newhead = ruleset->id_list.last_node->next;
     if (!newhead)
     {
-        return -1;
+        return -MR_ERR_GET_HEAD;
     }
 
     /* get a empty node from id list */
     newrulenode = list_entry(newhead, MASK_RULE_NODE_T, id_head);
     if (!newrulenode)
     {
-        return -1;
+        return -MR_ERR_GET_NODE;
     }
 
     /* updata rule node */
     newrulenode->content         = rulenode.content;
     newrulenode->valid           = 1;
     newrulenode->content.rule_id = ++(ruleset->rule_id);
+    if (!newrulenode->content.priority)
+    {
+        newrulenode->content.priority = MASK_RULE_PRIORITY_NUM - 1;
+    }
 
-    prioidx = priority ? (priority - 1) : 0;
+    priority = newrulenode->content.priority;
+    prioidx  = priority ? (priority - 1) : 0;
 
     /* inset a new to priority list tail */
     list_add_tail(&newrulenode->priority_head, ruleset->priority_list[prioidx].last_node);
@@ -127,7 +186,7 @@ int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
     ruleset->priority_list[prioidx].rule_num++;
     ruleset->rule_cnt++;
 
-    return 0;
+    return MR_SUCCESS;
 }
 
 int mask_rule_del(MASK_RULE_T *ruleset, UINT8_T rule_id)
@@ -138,14 +197,14 @@ int mask_rule_del(MASK_RULE_T *ruleset, UINT8_T rule_id)
     /* empty rule set */
     if (!ruleset->rule_cnt)
     {
-        return -1;
+        return -MR_ERR_CAP_EMPTY;
     }
 
     rulenode = mask_rule_get(ruleset, rule_id);
 
     if (!rulenode)
     {
-        return -1;
+        return -MR_ERR_SEARCH_NODE;
     }
 
     priority = rulenode->content.priority;
@@ -188,7 +247,7 @@ int mask_rule_del(MASK_RULE_T *ruleset, UINT8_T rule_id)
     ruleset->rule_cnt--;
     ruleset->priority_list[priority].rule_num--;
 
-    return 0;
+    return MR_SUCCESS;
 }
 
 MASK_RULE_NODE_T *mask_rule_get(MASK_RULE_T *ruleset, UINT8_T rule_id)
@@ -225,18 +284,21 @@ MASK_RULE_NODE_T *mask_rule_get(MASK_RULE_T *ruleset, UINT8_T rule_id)
     return NULL;
 }
 
-int mask_rule_macth(MASK_RULE_T *ruleset, UINT64_T mask_rule, match_callback func, void *arg)
+static int mask_rule_fitler(MASK_RULE_T *ruleset, MASK_RULE_NODE_T *filter)
 {
+    if (!ruleset || !filter)
+    {
+        return 0;
+    }
+
     int i = 0;
-    UINT64_T upmask = 0;
-    UINT64_T downmask = 0;
-    MASK_RULE_NODE_T *tmp;
-    MASK_RULE_NODE_T *pos;
+    MASK_RULE_NODE_T *tmp = NULL;
+    MASK_RULE_NODE_T *pos = NULL;
 
     /* empty rule set */
     if (!ruleset->rule_cnt)
     {
-        return -1;
+        return -MR_ERR_CAP_EMPTY;
     }
 
     for (i = 0; i < MASK_RULE_PRIORITY_NUM; ++i)
@@ -245,13 +307,71 @@ int mask_rule_macth(MASK_RULE_T *ruleset, UINT64_T mask_rule, match_callback fun
         {
             if (!pos)
             {
-                return -1;
+                return 0;
             }
 
             if (!pos->valid)
             {
-                return -1;
+                return 0;
             }
+
+            if (!pos->effect)
+            {
+                continue;
+            }
+
+            if (filter->content.priority < pos->content.priority)
+            {
+                return 0;
+            }
+            else if (filter->content.priority == pos->content.priority)
+            {
+                if (filter->content.rule_id <= pos->content.rule_id)
+                {
+                    return 0;
+                }
+            }
+
+            if (filter->content.omask.up & pos->content.omask.down ||
+                filter->content.omask.down & pos->content.omask.up)
+            {
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int mask_rule_macth(MASK_RULE_T *ruleset, UINT64_T mask_rule, match_callback func, void *arg)
+{
+    int i   = 0;
+    UINT64_T upmask = 0;
+    UINT64_T downmask = 0;
+    MASK_RULE_NODE_T *tmp = NULL;
+    MASK_RULE_NODE_T *pos = NULL;
+
+    /* empty rule set */
+    if (!ruleset->rule_cnt)
+    {
+        return -MR_ERR_CAP_EMPTY;
+    }
+
+    for (i = 0; i < MASK_RULE_PRIORITY_NUM; ++i)
+    {
+        list_for_each_entry_safe(pos, tmp, &ruleset->priority_list[i].list, priority_head)
+        {
+            if (!pos)
+            {
+                return -MR_ERR_GET_NODE;
+            }
+
+            if (!pos->valid)
+            {
+                return -MR_ERR_INVALID_NODE;
+            }
+
+            pos->effect = 0;
 
             if (pos->content.type == RULE_TYPE_FLEX)
             {
@@ -273,15 +393,22 @@ int mask_rule_macth(MASK_RULE_T *ruleset, UINT64_T mask_rule, match_callback fun
             {
                 continue;
             }
-            
+
+            if (mask_rule_fitler(ruleset, pos))
+            {
+                continue;
+            }
+
+            pos->effect = 1;
+
             if (0 > func(&pos->content, arg))
             {
-                return -1;
+                return -MR_ERR_CALLBACK;
             }
         }
     }
 
-    return 0;
+    return MR_SUCCESS;
 }
 
 void mask_rule_display(const MASK_RULE_CONTENT_T *content)

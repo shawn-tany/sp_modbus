@@ -4,7 +4,7 @@
 #include "mb_common.h"
 
 #define MBRTU_RECV_DELAY    200
-#define MBRTU_RECV_TIMEOUT  1000
+#define MBRTU_RECV_TIMEOUT  100
 #define MBRTU_SERIAL_SIZE   32
 
 typedef struct 
