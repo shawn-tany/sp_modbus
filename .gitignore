@@ -3,7 +3,6 @@ release
 source/lib
 source/include
 source/bin
-source/cli
 source/src/lib
 source/src/include
 source/src/*.o
