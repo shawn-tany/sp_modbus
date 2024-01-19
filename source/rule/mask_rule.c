@@ -174,7 +174,7 @@ int mask_rule_add(MASK_RULE_T *ruleset, MASK_RULE_NODE_T rulenode)
     prioidx  = priority ? (priority - 1) : 0;
 
     /* inset a new to priority list tail */
-    list_add_tail(&newrulenode->priority_head, ruleset->priority_list[prioidx].last_node);
+    list_add_tail(&newrulenode->priority_head, &ruleset->priority_list[prioidx].list);
 
     /* updata last id node */
     ruleset->id_list.last_node = &newrulenode->id_head;
@@ -222,9 +222,9 @@ int mask_rule_del(MASK_RULE_T *ruleset, UINT8_T rule_id)
     }
 
     /* updata last priority node */
-    if (ruleset->priority_list[priority].last_node == &rulenode->id_head)
+    if (ruleset->priority_list[priority].last_node == &rulenode->priority_head)
     {
-        ruleset->priority_list[priority].last_node = rulenode->id_head.prev;
+        ruleset->priority_list[priority].last_node = rulenode->priority_head.prev;
     }
 
     /* reset rule node */
