@@ -5,59 +5,60 @@
 #include <readline/history.h>
 #include <readline/readline.h>
 
-#include "command.h"
+#include "trie.h"
+#include "cli.h"
 
 static struct 
 {
-    CMD_LIST_T *cmdlist;
-    CMD_NODE_T *cmdnode;
+    TRIE_ROOT_T *root;
+    TRIE_NODE_T *search;
 
+    int index;
     int start;
     int end;
-    int finish;
 } cmd_ctx;
 
 char *command_generator(const char *text, int state)
 {
     int length = strlen(text);
-    int i = 0;
-    CMD_NODE_T *lastnode = list_last_entry(&cmd_ctx.cmdlist->list, CMD_NODE_T, node);
+    int i = cmd_ctx.index;
+    char *retstr = NULL;
 
-    if (cmd_ctx.finish)
-    { 
-        return ((char *)NULL);
+    if (cmd_ctx.search->node_num <= i)
+    {
+        printf("%s : %d : %s\n", __FUNCTION__, __LINE__, cmd_ctx.search->data);
+        goto NO_SUCH;
     }
 
-    do
+    if (!cmd_ctx.search->node[i]->data_len)
     {
-        if (!cmd_ctx.cmdnode)
-        {
-            cmd_ctx.cmdnode = list_first_entry(&cmd_ctx.cmdlist->list, CMD_NODE_T, node);
-        }                                               
-        else
-        {
-            cmd_ctx.cmdnode = list_next_entry(cmd_ctx.cmdnode, node);
-        }
+        printf("%s : %d : %s\n", __FUNCTION__, __LINE__, cmd_ctx.search->data);
+        goto NO_SUCH;
+    }
 
-        if (cmd_ctx.cmdnode->cmdid >= cmd_ctx.cmdlist->cmdnum)
+    for (; i < cmd_ctx.search->node_num; ++i)
+    {
+        if (!strncmp(cmd_ctx.search->node[i]->data, text, length))
         {
-            cmd_ctx.finish = 1;
-        }
-
-        for (i = 0; i < cmd_ctx.cmdnode->keynum; i++)
-        {
-            if (cmd_ctx.cmdnode->cmd[i].offset != cmd_ctx.start)
+            if (length)
             {
-                continue;
+                retstr = cmd_ctx.search->node[i]->data;
+                cmd_ctx.search = cmd_ctx.search->node[i];
+                cmd_ctx.index = 0;
+            }
+            else 
+            {
+                retstr = cmd_ctx.search->node[i]->data;
+                cmd_ctx.index++;
             }
 
-            if (!strncmp(cmd_ctx.cmdnode->cmd[i].cmd_key, text, length))
-            {
-                return strdup(cmd_ctx.cmdnode->cmd[i].cmd_key);
-            }
+            return strdup(retstr);
         }
+    }
 
-    } while (!cmd_ctx.finish);
+NO_SUCH :
+
+    cmd_ctx.index = 0;
 
     return ((char *)NULL);
 }
@@ -68,9 +69,13 @@ char **mlt_completion(const char *text, int start, int end)
 
     matches = (char **)NULL;
 
-    cmd_ctx.start  = start;
-    cmd_ctx.end    = end;
-    cmd_ctx.finish = 0;
+    cmd_ctx.start = start;
+    cmd_ctx.end   = end;
+
+    if (0 == start)
+    {
+        cmd_ctx.search = &cmd_ctx.root->root;
+    }
 
     matches = rl_completion_matches(text, command_generator);
 
@@ -88,46 +93,48 @@ void initialize_readline()
 
 int command_ctx_init(void)
 {
-    cmd_ctx.cmdlist = NULL;
-    cmd_ctx.cmdnode = NULL;
+    cmd_ctx.root   = NULL;
+    cmd_ctx.search = NULL;
+    cmd_ctx.index  = 0;
+    cmd_ctx.start  = 0;
+    cmd_ctx.end    = 0;
 
-    cmd_ctx.start = 0;
-    cmd_ctx.end   = 0;
-
-    cmd_ctx.cmdlist = command_list_create();
-    if (!cmd_ctx.cmdlist)
+    cmd_ctx.root = trie_init(trie_strcmp);
+    if (!cmd_ctx.root)
     {
-        printf("failed to create command list\n");
+        printf("failed to create command trie\n");
         return -1;
     }
 
+    cmd_ctx.search = &cmd_ctx.root->root;
+
     CMD_START;
     CMD_LINE("exit");
-    CMD_ADD(cmd_ctx.cmdlist, NULL);
+    CMD_ADD(cmd_ctx.root, NULL);
     CMD_END;
 
     CMD_START;
     CMD_LINE("rely");
     CMD_LINE("on");
-    CMD_ADD(cmd_ctx.cmdlist, NULL);
+    CMD_ADD(cmd_ctx.root, NULL);
     CMD_END;
 
     CMD_START;
     CMD_LINE("rely");
     CMD_LINE("off");
-    CMD_ADD(cmd_ctx.cmdlist, NULL);
+    CMD_ADD(cmd_ctx.root, NULL);
     CMD_END;
 
     CMD_START;
     CMD_LINE("stay");
     CMD_LINE("on");
-    CMD_ADD(cmd_ctx.cmdlist, NULL);
+    CMD_ADD(cmd_ctx.root, NULL);
     CMD_END;
 
     CMD_START;
     CMD_LINE("stay");
     CMD_LINE("off");
-    CMD_ADD(cmd_ctx.cmdlist, NULL);
+    CMD_ADD(cmd_ctx.root, NULL);
     CMD_END;
 
     CMD_START;
@@ -137,7 +144,7 @@ int command_ctx_init(void)
     CMD_LINE("0x0000-0x0010");
     CMD_LINE("nreg");
     CMD_LINE("1-16");
-    CMD_ADD(cmd_ctx.cmdlist, NULL);
+    CMD_ADD(cmd_ctx.root, NULL);
     CMD_END;
 
     CMD_START;
@@ -145,20 +152,13 @@ int command_ctx_init(void)
     CMD_LINE("2");
     CMD_LINE("reg");
     CMD_LINE("0x0010");
-    CMD_ADD(cmd_ctx.cmdlist, NULL);
+    CMD_ADD(cmd_ctx.root, NULL);
     CMD_END;
-
-    command_list_show(cmd_ctx.cmdlist);
-}
-
-void command_ctx_uinit(void)
-{
-    command_list_destory(cmd_ctx.cmdlist);
 }
 
 int main(int argc, char **argv)
 {
-    char *line, *s;
+    char *line;
 
     command_ctx_init();
 
@@ -180,8 +180,6 @@ int main(int argc, char **argv)
         
         free(line);
     }
-
-    command_ctx_uinit();
     
     return 0;
 }
