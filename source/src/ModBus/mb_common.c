@@ -1,6 +1,5 @@
 /*
- * Author   : tanxiaoyang
- * Company  : EVOC
+ * Author   : shawn-tany
  * Function : encap/decap ModBus PDU(Protocol Data Unit) 
  */
 
@@ -77,7 +76,7 @@ MB_DATA_T *mb_data_create(UINT32_T max_data_size)
 
     MB_DATA_T *mb_data = NULL;
 
-    /* create evoc modbus data cache */
+    /* create sp modbus data cache */
     mb_data = (MB_DATA_T *)malloc(sizeof(MB_DATA_T) + max_data_size);
     if (!mb_data)
     {

@@ -1,6 +1,5 @@
 /*
- * Author   : tanxiaoyang
- * Company  : EVOC
+ * Author   : shawn-tany
  * Function : Debugging ModBus function
  */
 
@@ -12,7 +11,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include "evoc_mb.h"
+#include "sp_mb.h"
 #include "mask_rule.h"
 
 #define LOCK(lock)  pthread_mutex_lock(lock)
@@ -22,17 +21,17 @@
 
 enum
 {
-    EVOCMB_QUIT = 0x100,
-    EVOCMB_STAY,
-    EVOCMB_RELY,
-    EVOCMB_RULE,
-    EVOCMB_IO
+    SPMB_QUIT = 0x100,
+    SPMB_STAY,
+    SPMB_RELY,
+    SPMB_RULE,
+    SPMB_IO
 };
 
-static EVOCMB_CTX_T *mb_ctx  = NULL; 
+static SPMB_CTX_T *mb_ctx  = NULL; 
 static MASK_RULE_T  *ruleset = NULL;
 
-static EVOCMB_CTL_T default_ctl = {
+static SPMB_CTL_T default_ctl = {
     .mb_type = MB_TYPE_TCP,
 
     .tcp_ctrl = {
@@ -60,11 +59,11 @@ static struct
     char    *cmd;
     UINT16_T code;
 } cmd_code_map[] = {
-    { "exit", EVOCMB_QUIT },
-    { "stay", EVOCMB_STAY },
-    { "rely", EVOCMB_RELY },
-    { "rule", EVOCMB_RULE },
-    { "io",   EVOCMB_IO   }
+    { "exit", SPMB_QUIT },
+    { "stay", SPMB_STAY },
+    { "rely", SPMB_RELY },
+    { "rule", SPMB_RULE },
+    { "io",   SPMB_IO   }
 };
 
 enum 
@@ -87,35 +86,35 @@ static struct
 
 enum
 {
-    EVOCMB_OPT_TYPE = 1001,
-    EVOCMB_OPT_MAX_DATA_SIZE,
-    EVOCMB_OPT_IP,
-    EVOCMB_OPT_PORT,
-    EVOCMB_OPT_ETHDEV,
-    EVOCMB_OPT_BAUDRATE,
-    EVOCMB_OPT_DATABIT,
-    EVOCMB_OPT_STOPBIT,
-    EVOCMB_OPT_SERIAL,
-    EVOCMB_OPT_FLOWCTL,
-    EVOCMB_OPT_PARITY,
-    EVOCMB_OPT_SLAVER,
-    EVOCMB_OPT_HELP
+    SPMB_OPT_TYPE = 1001,
+    SPMB_OPT_MAX_DATA_SIZE,
+    SPMB_OPT_IP,
+    SPMB_OPT_PORT,
+    SPMB_OPT_ETHDEV,
+    SPMB_OPT_BAUDRATE,
+    SPMB_OPT_DATABIT,
+    SPMB_OPT_STOPBIT,
+    SPMB_OPT_SERIAL,
+    SPMB_OPT_FLOWCTL,
+    SPMB_OPT_PARITY,
+    SPMB_OPT_SLAVER,
+    SPMB_OPT_HELP
 };
 
 static struct option long_options[] = {
-    { "type",             1, 0, EVOCMB_OPT_TYPE             },
-    { "max_data_size",    1, 0, EVOCMB_OPT_MAX_DATA_SIZE    },
-    { "ip",               1, 0, EVOCMB_OPT_IP               },
-    { "port",             1, 0, EVOCMB_OPT_PORT             },
-    { "ethdev",           1, 0, EVOCMB_OPT_ETHDEV           },
-    { "baudrate",         1, 0, EVOCMB_OPT_BAUDRATE         },
-    { "databit",          1, 0, EVOCMB_OPT_DATABIT          },
-    { "stopbit",          1, 0, EVOCMB_OPT_STOPBIT          },
-    { "serial",           1, 0, EVOCMB_OPT_SERIAL           },
-    { "flowctl",          1, 0, EVOCMB_OPT_FLOWCTL          },
-    { "parity",           1, 0, EVOCMB_OPT_PARITY           },
-    { "slaver",           1, 0, EVOCMB_OPT_SLAVER           },
-    { "help",             0, 0, EVOCMB_OPT_HELP             }
+    { "type",             1, 0, SPMB_OPT_TYPE             },
+    { "max_data_size",    1, 0, SPMB_OPT_MAX_DATA_SIZE    },
+    { "ip",               1, 0, SPMB_OPT_IP               },
+    { "port",             1, 0, SPMB_OPT_PORT             },
+    { "ethdev",           1, 0, SPMB_OPT_ETHDEV           },
+    { "baudrate",         1, 0, SPMB_OPT_BAUDRATE         },
+    { "databit",          1, 0, SPMB_OPT_DATABIT          },
+    { "stopbit",          1, 0, SPMB_OPT_STOPBIT          },
+    { "serial",           1, 0, SPMB_OPT_SERIAL           },
+    { "flowctl",          1, 0, SPMB_OPT_FLOWCTL          },
+    { "parity",           1, 0, SPMB_OPT_PARITY           },
+    { "slaver",           1, 0, SPMB_OPT_SLAVER           },
+    { "help",             0, 0, SPMB_OPT_HELP             }
 };
 
 static void signal_handle(int arg)
@@ -146,7 +145,7 @@ static void help(void)
             "   --flowctl,         Set ModBus RTU flow control [0]\n"
             "   --parity,          Set ModBus RTU parity [0]\n"
             "   --slaver,          Set ModBus RTU slaver address [1]\n"
-            "   --help,            Show EVOC ModBus demo options\n\n");
+            "   --help,            Show SP ModBus demo options\n\n");
 }
 
 /*
@@ -155,7 +154,7 @@ static void help(void)
  * argv      : parameter list of command line
  * return    : 0=SUCCESS -1=ERROR
  */
-static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
+static int arg_parse(int argc, char *argv[ ], SPMB_CTL_T *ctl)
 {
     PTR_CHECK_N1(argv);
     PTR_CHECK_N1(ctl);
@@ -167,7 +166,7 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
     {
         switch (opt)
         {
-            case EVOCMB_OPT_TYPE :
+            case SPMB_OPT_TYPE :
                 if (!strcasecmp(optarg, "rtu"))
                 {
                     ctl->mb_type = MB_TYPE_RTU;
@@ -183,51 +182,51 @@ static int arg_parse(int argc, char *argv[ ], EVOCMB_CTL_T *ctl)
                 }
                 break;
 
-            case EVOCMB_OPT_MAX_DATA_SIZE :
+            case SPMB_OPT_MAX_DATA_SIZE :
                 ctl->tcp_ctrl.max_data_size = ctl->rtu_ctrl.max_data_size = strtol(optarg, NULL, 10);
                 break;
         
-            case EVOCMB_OPT_SLAVER :
+            case SPMB_OPT_SLAVER :
                 ctl->tcp_ctrl.unitid = ctl->rtu_ctrl.slaver_addr = strtol(optarg, NULL, 0);
                 break;
 
-            case EVOCMB_OPT_IP :
+            case SPMB_OPT_IP :
                 snprintf(ctl->tcp_ctrl.ip, sizeof(ctl->tcp_ctrl.ip), "%s", optarg);
                 break;
                 
-            case EVOCMB_OPT_PORT :
+            case SPMB_OPT_PORT :
                 ctl->tcp_ctrl.port = strtol(optarg, NULL, 10);
                 break;
                 
-            case EVOCMB_OPT_ETHDEV :
+            case SPMB_OPT_ETHDEV :
                 snprintf(ctl->tcp_ctrl.ethdev, sizeof(ctl->tcp_ctrl.ethdev), "%s", optarg);
                 break;
 
-            case EVOCMB_OPT_HELP :
+            case SPMB_OPT_HELP :
                 help();
                 exit(0);
 
-            case EVOCMB_OPT_SERIAL :
+            case SPMB_OPT_SERIAL :
                 snprintf(ctl->rtu_ctrl.serial, sizeof(ctl->rtu_ctrl.serial), "%s", optarg);
                 break;
 
-            case EVOCMB_OPT_BAUDRATE :
+            case SPMB_OPT_BAUDRATE :
                 ctl->rtu_ctrl.baudrate = strtol(optarg, NULL, 10);
                 break;
 
-            case EVOCMB_OPT_DATABIT :
+            case SPMB_OPT_DATABIT :
                 ctl->rtu_ctrl.databit = strtol(optarg, NULL, 0);
                 break;
 
-            case EVOCMB_OPT_STOPBIT :
+            case SPMB_OPT_STOPBIT :
                 ctl->rtu_ctrl.stopbit = strtol(optarg, NULL, 0);
                 break;
 
-            case EVOCMB_OPT_FLOWCTL :
+            case SPMB_OPT_FLOWCTL :
                 ctl->rtu_ctrl.flowctl = strtol(optarg, NULL, 0);
                 break;
 
-            case EVOCMB_OPT_PARITY :
+            case SPMB_OPT_PARITY :
                 ctl->rtu_ctrl.parity = strtol(optarg, NULL, 0);
                 break;
 
@@ -386,7 +385,7 @@ static int command_io_handle(void)
             ioidx = strtol(argv[idx], NULL, 0);
             
             LOCK(&resource.lock);
-            ret = evoc_mbio_get(mb_ctx, direction, ioidx, &status);
+            ret = sp_mbio_get(mb_ctx, direction, ioidx, &status);
             ULOCK(&resource.lock);
 
             if (0 > ret)
@@ -408,7 +407,7 @@ static int command_io_handle(void)
             status = !strcmp(argv[idx], "on") ? IO_ON : IO_OFF;
             
             LOCK(&resource.lock);
-            ret = evoc_mbio_set(mb_ctx, ioidx, status);
+            ret = sp_mbio_set(mb_ctx, ioidx, status);
             ULOCK(&resource.lock);
 
             if (0 > ret)
@@ -687,25 +686,25 @@ static int command_select(MB_INFO_T *mb_info)
 
     switch (code)
     {
-        case EVOCMB_STAY :
+        case SPMB_STAY :
             printf("Please input stay status [on|off]\n");
             fgets(command, sizeof(command), stdin);
             resource.stay = strncasecmp(command, "on", 2) ? 0 : 1;
             break;
 
-        case EVOCMB_RELY :
+        case SPMB_RELY :
             printf("Please input rely status [on|off]\n");
             fgets(command, sizeof(command), stdin);
             resource.rely = strncasecmp(command, "on", 2) ? 0 : 1;
             break;
 
-        case EVOCMB_RULE :
+        case SPMB_RULE :
             return command_rule_handle();
 
-        case EVOCMB_IO :
+        case SPMB_IO :
             return command_io_handle();
 
-        case EVOCMB_QUIT :
+        case SPMB_QUIT :
             resource.running = 0;
             break;
             
@@ -722,7 +721,7 @@ static int command_select(MB_INFO_T *mb_info)
  * mb_info  : debugging all functions of ModBus demo
  * return   : (ModBus function code)=SUCCESS -1=ERROR
  */
-static int work(EVOCMB_CTX_T *mb_ctx)
+static int work(SPMB_CTX_T *mb_ctx)
 {
     PTR_CHECK_N1(mb_ctx);
 
@@ -746,24 +745,24 @@ static int work(EVOCMB_CTX_T *mb_ctx)
         do 
         {
             /* send a modbsu request */
-            if (0 > evoc_mb_send(mb_ctx, &mb_info))
+            if (0 > sp_mb_send(mb_ctx, &mb_info))
             {
                 printf("ERROR : ModBus send request failed\n");
                 break;
             }
 
             /* recv a modbus response */
-            if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+            if (0 > sp_mb_recv(mb_ctx, &mb_info))
             {
                 printf("ERROR : ModBus recv response failed\n");
                 break;
             }
 
             /* Show response status */
-            evoc_mb_status_show(mb_info);
+            sp_mb_status_show(mb_info);
 
             /* Show response data */
-            evoc_mb_data_show(mb_info);
+            sp_mb_data_show(mb_info);
         } while (0);
 
         ULOCK(&resource.lock);
@@ -794,14 +793,14 @@ static void *stay_connected_routine(void *arg)
             }
 
             /* send a modbsu request */
-            if (0 > evoc_mb_send(mb_ctx, &mb_info))
+            if (0 > sp_mb_send(mb_ctx, &mb_info))
             {
                 MB_PRINT("THREAD ERROR : ModBus send request failed\n");
                 break;
             }
 
             /* recv a modbus response */
-            if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+            if (0 > sp_mb_recv(mb_ctx, &mb_info))
             {
                 MB_PRINT("THREAD ERROR : ModBus recv response failed\n");
                 break;
@@ -832,14 +831,14 @@ static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
     };
 
     /* get modbsu output coils request */
-    if (0 > evoc_mb_send(mb_ctx, &get_mb_info))
+    if (0 > sp_mb_send(mb_ctx, &get_mb_info))
     {
         MB_PRINT("IO RELY ERROR : ModBus send request failed\n");
         return -1;
     }
 
     /* get modbsu output coils response */
-    if (0 > evoc_mb_recv(mb_ctx, &get_mb_info))
+    if (0 > sp_mb_recv(mb_ctx, &get_mb_info))
     {
         MB_PRINT("IO RELY ERROR : ModBus recv response failed\n");
         return -1;
@@ -863,14 +862,14 @@ static int io_rely_handle(MASK_RULE_CONTENT_T *content, void *)
     }
 
     /* send a modbsu request */
-    if (0 > evoc_mb_send(mb_ctx, &set_mb_info))
+    if (0 > sp_mb_send(mb_ctx, &set_mb_info))
     {
         MB_PRINT("IO RELY ERROR : ModBus send request failed\n");
         return -1;
     }
 
     /* recv a modbus response */
-    if (0 > evoc_mb_recv(mb_ctx, &set_mb_info))
+    if (0 > sp_mb_recv(mb_ctx, &set_mb_info))
     {
         MB_PRINT("IO RELY ERROR : ModBus recv response failed\n");
         return -1;
@@ -883,7 +882,7 @@ static void *io_rely_routine(void *arg)
 {
     PTR_CHECK_NULL(arg);
 
-    EVOCMB_CTX_T *mb_ctx = (EVOCMB_CTX_T *)arg;
+    SPMB_CTX_T *mb_ctx = (SPMB_CTX_T *)arg;
 
     int i = 0;
     UINT64_T imask = 0;
@@ -908,14 +907,14 @@ static void *io_rely_routine(void *arg)
             }
 
             /* send a modbsu request */
-            if (0 > evoc_mb_send(mb_ctx, &mb_info))
+            if (0 > sp_mb_send(mb_ctx, &mb_info))
             {
                 MB_PRINT("RELY THREAD ERROR : ModBus send request failed\n");
                 break;
             }
 
             /* recv a modbus response */
-            if (0 > evoc_mb_recv(mb_ctx, &mb_info))
+            if (0 > sp_mb_recv(mb_ctx, &mb_info))
             {
                 MB_PRINT("RELY THREAD ERROR : ModBus recv response failed\n");
                 break;
@@ -937,7 +936,7 @@ static void *io_rely_routine(void *arg)
     return NULL;
 }
 
-static int resc_init(EVOCMB_CTX_T *mb_ctx)
+static int resc_init(SPMB_CTX_T *mb_ctx)
 {
     /* Create mutex lock */
     pthread_mutex_init(&(resource.lock), NULL);
@@ -975,16 +974,16 @@ static void resc_uinit(void)
 
 int main(int argc, char *argv[ ])
 {   
-    EVOCMB_CTL_T ctl = default_ctl;
+    SPMB_CTL_T ctl = default_ctl;
 
     signal(SIGINT, signal_handle);
 
     arg_parse(argc, argv, &ctl);
 
-    mb_ctx = evoc_mb_init(&ctl);
+    mb_ctx = sp_mb_init(&ctl);
     if (!mb_ctx)
     {
-        printf("Can not create evoc modbus context\n");
+        printf("Can not create sp modbus context\n");
         return -1;
     }
 
@@ -997,20 +996,20 @@ int main(int argc, char *argv[ ])
 
     if (0 > resc_init(mb_ctx))
     {
-        printf("Can not init evoc modbus resource\n");
+        printf("Can not init sp modbus resource\n");
         return -1;
     }
 
-    /* evoc modbus work */
+    /* sp modbus work */
     work(mb_ctx);
 
     resc_uinit();
 
     mask_rule_exit(ruleset);
 
-    evoc_mb_close(mb_ctx);
+    sp_mb_close(mb_ctx);
     
-    printf("EVOC ModBus demo exit\n");
+    printf("SP ModBus demo exit\n");
 
     return 0;
 }

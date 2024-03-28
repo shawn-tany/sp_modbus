@@ -1,6 +1,5 @@
 /*
- * Author   : tanxiaoyang
- * Company  : EVOC
+ * Author   : shawn-tany
  * Function : 1. Open/Close connection with ModBus TCP server 
  *            2. Recv/Send  data to ModBus TCP server 
  */

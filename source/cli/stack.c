@@ -12,11 +12,11 @@
     }                   \
 }
 
-dapp_stack_t *dapp_stack_create(int node_num, int node_size)
+SP_STACK_T *sp_stack_create(int node_num, int node_size)
 {
-    dapp_stack_t *stack = NULL;
+    SP_STACK_T *stack = NULL;
 
-    stack = (dapp_stack_t *)malloc(sizeof(dapp_stack_t));
+    stack = (SP_STACK_T *)malloc(sizeof(SP_STACK_T));
     if (!stack) 
     {
         return NULL;
@@ -40,7 +40,7 @@ dapp_stack_t *dapp_stack_create(int node_num, int node_size)
     return stack;
 }
 
-int dapp_enstack(dapp_stack_t *stack, void *node, int size)
+int sp_enstack(SP_STACK_T *stack, void *node, int size)
 {
     PTR_CHECK(stack);
     PTR_CHECK(node);
@@ -72,7 +72,7 @@ int dapp_enstack(dapp_stack_t *stack, void *node, int size)
     return 0;
 }
 
-int dapp_destack(dapp_stack_t *stack, void *node, int size)
+int sp_destack(SP_STACK_T *stack, void *node, int size)
 {
     PTR_CHECK(stack);
     PTR_CHECK(node);
@@ -104,7 +104,7 @@ int dapp_destack(dapp_stack_t *stack, void *node, int size)
     return 0;
 }
 
-int dapp_stack_top(dapp_stack_t *stack, void *node, int size)
+int sp_stack_top(SP_STACK_T *stack, void *node, int size)
 {
     PTR_CHECK(stack);
     PTR_CHECK(node);
@@ -129,7 +129,7 @@ int dapp_stack_top(dapp_stack_t *stack, void *node, int size)
     return 0;
 }
 
-void dapp_stack_free(dapp_stack_t *stack)
+void sp_stack_free(SP_STACK_T *stack)
 {
     if (stack) 
     {

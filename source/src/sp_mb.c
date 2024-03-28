@@ -1,6 +1,5 @@
 /*
- * Author   : tanxiaoyang
- * Company  : EVOC
+ * Author   : shawn-tany
  * Function : 1. Open/Close connection with ModBus slaver
  *            2. Recv/Send  data to ModBus slaver
  */
@@ -9,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "evoc_mb.h"
+#include "sp_mb.h"
 
 #define DFT_MBIO_CONFIG_FILE "/usr/local/etc/mb_io.conf"
 
@@ -19,7 +18,7 @@
  * return   : 0=SUCCESS -1=ERROR
  */
 
-static int evoc_mbctx_info_updata(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
+static int sp_mbctx_info_updata(SPMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -86,7 +85,7 @@ static int evoc_mbctx_info_updata(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
  * mb_ctx   : ModBus context
  * return   : 0=SUCCESS -1=ERROR
  */
-static int evoc_mbctx_info_takeout(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
+static int sp_mbctx_info_takeout(SPMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -110,7 +109,7 @@ static int evoc_mbctx_info_takeout(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
     return ret;
 }
 
-static int evoc_io_config(EVOCMB_CTX_T *mb_ctx, char *filename)
+static int sp_io_config(SPMB_CTX_T *mb_ctx, char *filename)
 {
     PTR_CHECK_N1(mb_ctx);
     PTR_CHECK_N1(filename);
@@ -216,24 +215,24 @@ static int evoc_io_config(EVOCMB_CTX_T *mb_ctx, char *filename)
 /*
  * Function  : Create a ModBus Context
  * mb_ctl    : some information for create ModBus Context
- * return    : (EVOCMB_CTX_T *)=SUCCESS NULL=ERRROR
+ * return    : (SPMB_CTX_T *)=SUCCESS NULL=ERRROR
  */
-EVOCMB_CTX_T *evoc_mb_init(EVOCMB_CTL_T *mb_ctl)
+SPMB_CTX_T *sp_mb_init(SPMB_CTL_T *mb_ctl)
 {
     PTR_CHECK_NULL(mb_ctl);
 
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
-    EVOCMB_CTX_T *mb_ctx = NULL;
+    SPMB_CTX_T *mb_ctx = NULL;
     char *ioconf = strlen(mb_ctl->mb_conf) ? mb_ctl->mb_conf : DFT_MBIO_CONFIG_FILE;
 
-    /* create evoc modbus context */
-    mb_ctx = (EVOCMB_CTX_T *)malloc(sizeof(EVOCMB_CTX_T));
+    /* create sp modbus context */
+    mb_ctx = (SPMB_CTX_T *)malloc(sizeof(SPMB_CTX_T));
     if (!mb_ctx)
     {
         return NULL;
     }
-    memset(mb_ctx, 0, sizeof(EVOCMB_CTX_T));
+    memset(mb_ctx, 0, sizeof(SPMB_CTX_T));
 
     /* create a modbus descriptor */
     if (MB_TYPE_TCP == mb_ctl->mb_type)
@@ -267,7 +266,7 @@ EVOCMB_CTX_T *evoc_mb_init(EVOCMB_CTL_T *mb_ctl)
         return NULL;
     }
 
-    evoc_io_config(mb_ctx, ioconf);
+    sp_io_config(mb_ctx, ioconf);
 
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -279,7 +278,7 @@ EVOCMB_CTX_T *evoc_mb_init(EVOCMB_CTL_T *mb_ctl)
  * mb_ctx   : the ModBus context you want to close
  * return   : void
  */
-void evoc_mb_close(EVOCMB_CTX_T *mb_ctx)
+void sp_mb_close(SPMB_CTX_T *mb_ctx)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -305,7 +304,7 @@ void evoc_mb_close(EVOCMB_CTX_T *mb_ctx)
  * mb_ctx   : ModBus context
  * return   : 0=CLOSE length=SUCCESS -1=ERROR
  */
-int evoc_mb_recv(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
+int sp_mb_recv(SPMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -324,7 +323,7 @@ int evoc_mb_recv(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
         length = mb_rtu_recv(mb_ctx->ctx.mb_rtu_ctx);
     }
 
-    if (0 > evoc_mbctx_info_takeout(mb_ctx, mb_info))
+    if (0 > sp_mbctx_info_takeout(mb_ctx, mb_info))
     {
         return -1;
     }
@@ -339,7 +338,7 @@ int evoc_mb_recv(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
  * mb_ctx   : ModBus context
  * return   : 0=CLOSE length=SUCCESS -1=ERROR
  */
-int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
+int sp_mb_send(SPMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -347,7 +346,7 @@ int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
 
     int length = 0;
 
-    if (0 > evoc_mbctx_info_updata(mb_ctx, mb_info))
+    if (0 > sp_mbctx_info_updata(mb_ctx, mb_info))
     {
         return -1;
     }
@@ -367,7 +366,7 @@ int evoc_mb_send(EVOCMB_CTX_T *mb_ctx, MB_INFO_T *mb_info)
     return length;
 }
 
-int evoc_mbio_get(EVOCMB_CTX_T *mb_ctx, IO_DIRECTION_T direction, 
+int sp_mbio_get(SPMB_CTX_T *mb_ctx, IO_DIRECTION_T direction, 
     UINT16_T ioidx, IO_STATUS_T *status)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
@@ -394,14 +393,14 @@ int evoc_mbio_get(EVOCMB_CTX_T *mb_ctx, IO_DIRECTION_T direction,
     }
 
     /* send a modbsu request */
-    if (0 > evoc_mb_send(mb_ctx, &get_mb_info))
+    if (0 > sp_mb_send(mb_ctx, &get_mb_info))
     {
         MB_PRINT("IO GET ERROR : ModBus send request failed\n");
         return -1;
     }
 
     /* recv a modbus response */
-    if (0 > evoc_mb_recv(mb_ctx, &get_mb_info))
+    if (0 > sp_mb_recv(mb_ctx, &get_mb_info))
     {
         MB_PRINT("IO GET ERROR : ModBus recv response failed\n");
         return -1;
@@ -414,7 +413,7 @@ int evoc_mbio_get(EVOCMB_CTX_T *mb_ctx, IO_DIRECTION_T direction,
     return 0;
 }
 
-int evoc_mbio_set(EVOCMB_CTX_T *mb_ctx, UINT16_T ioidx, IO_STATUS_T statu)
+int sp_mbio_set(SPMB_CTX_T *mb_ctx, UINT16_T ioidx, IO_STATUS_T statu)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -434,14 +433,14 @@ int evoc_mbio_set(EVOCMB_CTX_T *mb_ctx, UINT16_T ioidx, IO_STATUS_T statu)
     }
 
     /* get modbsu output coils request */
-    if (0 > evoc_mb_send(mb_ctx, &set_mb_info))
+    if (0 > sp_mb_send(mb_ctx, &set_mb_info))
     {
         MB_PRINT("IO SET ERROR : ModBus send request failed\n");
         return -1;
     }
 
     /* get modbsu output coils response */
-    if (0 > evoc_mb_recv(mb_ctx, &set_mb_info))
+    if (0 > sp_mb_recv(mb_ctx, &set_mb_info))
     {
         MB_PRINT("IO SET ERROR : ModBus recv response failed\n");
         return -1;
@@ -457,7 +456,7 @@ int evoc_mbio_set(EVOCMB_CTX_T *mb_ctx, UINT16_T ioidx, IO_STATUS_T statu)
  * mb_info   : ModBus master info
  * return    : void
  */
-void evoc_mb_status_show(MB_INFO_T mb_info)
+void sp_mb_status_show(MB_INFO_T mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 
@@ -523,7 +522,7 @@ void evoc_mb_status_show(MB_INFO_T mb_info)
  * mb_info   : ModBus master info
  * return    : void
  */
-void evoc_mb_data_show(MB_INFO_T mb_info)
+void sp_mb_data_show(MB_INFO_T mb_info)
 {
     MB_PRINT("%s : %d\n", __FUNCTION__, __LINE__);
 

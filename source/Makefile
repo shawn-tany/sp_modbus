@@ -8,8 +8,8 @@ CONF_FILE   := mb_io.conf
 
 BITNAME     := $(shell getconf LONG_BIT)
 LIBNAME     := $(LIB_DIR)/liblinux$(BITNAME)modbus
-APP         := $(BIN_DIR)/evoc_mb_demo
-PACKAGE     := $(RELEASE_DIR)/evoc_modbus.tar.gz
+APP         := $(BIN_DIR)/sp_mb_demo
+PACKAGE     := $(RELEASE_DIR)/sp_modbus.tar.gz
 V           := 0
 
 CFLAGS 	:= -g
@@ -32,7 +32,7 @@ endif
 .PHONY: install release
 
 ALL : clean
-	@echo "EVOC ModBus compiling"
+	@echo "SP ModBus compiling"
 	@## build libraries
 	$(HIDE) make --no-print-directory -f src/Makefile MBAPIDIR=src
 	$(HIDE) cp src/lib . -rf
@@ -41,7 +41,7 @@ ALL : clean
 	@## build app
 	$(HIDE) mkdir -p $(BIN_DIR)
 	$(HIDE) $(CC) $(CFLAGS) main.c rule/mask_rule.c $(SRCS) $(LIB_LINK) -o $(APP)
-	@echo "EVOC ModBus compile SUCCESS"
+	@echo "SP ModBus compile SUCCESS"
 	$(HIDE) $(NOTE)
 
 clean :

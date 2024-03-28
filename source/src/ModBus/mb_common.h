@@ -1,6 +1,5 @@
 /*
- * Author   : tanxiaoyang
- * Company  : EVOC
+ * Author   : shawn-tany
  * Function : encap/decap ModBus PDU(Protocol Data Unit) 
  */
 

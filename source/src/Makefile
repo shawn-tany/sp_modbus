@@ -6,12 +6,12 @@ BITNAME := $(shell getconf LONG_BIT)
 
 LIBNAME := liblinux$(BITNAME)modbus
 
-SRCS := $(MBAPIDIR)/evoc_mb.c
+SRCS := $(MBAPIDIR)/sp_mb.c
 SRCS += $(MBAPIDIR)/ModBus/mb_common.c
 SRCS += $(MBAPIDIR)/ModBus/mb_tcp.c
 SRCS += $(MBAPIDIR)/ModBus/mb_rtu.c
 
-INCS := $(MBAPIDIR)/evoc_mb.h
+INCS := $(MBAPIDIR)/sp_mb.h
 INCS += $(MBAPIDIR)/ModBus/mb_common.h
 INCS += $(MBAPIDIR)/ModBus/mb_tcp.h
 INCS += $(MBAPIDIR)/ModBus/mb_rtu.h
